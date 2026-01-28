@@ -1,0 +1,15 @@
+[package]
+name = "inariward"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+argon2 = { version = "0.5", features = ["std"] }
+rand = { version = "0.8", features = ["std_rng"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0.18"
+
+[features]
+default = ["json"]  # Enabled always unless --no-default-features
+json = []           # No-op (core HashMap/serde_json)
