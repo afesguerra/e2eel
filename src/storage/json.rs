@@ -1,4 +1,5 @@
-use crate::core::{KeyStorage, KeyGraph, Result};
+use crate::core::{KeyGraph, Result};
+use super::KeyStorage;
 
 pub struct JsonStorage {
     path: String,

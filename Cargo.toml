@@ -4,11 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+aes-gcm = "0.10.3"
 argon2 = { version = "0.5", features = ["std"] }
-rand = { version = "0.8", features = ["std_rng"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2.0.18"
+zeroize = "1.8.2"
 
 [features]
 default = ["json"]  # Enabled always unless --no-default-features
