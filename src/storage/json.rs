@@ -1,5 +1,5 @@
-use crate::core::{KeyGraph, Result};
-use super::KeyStorage;
+use super::{KeyGraph, KeyStorage};
+use crate::core::Result;
 
 pub struct JsonStorage {
     path: String,
@@ -28,7 +28,7 @@ impl KeyStorage for JsonStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::tests::sample_graph;
+    use crate::storage::tests::sample_graph;
 
     #[test]
     fn test_load_json() {

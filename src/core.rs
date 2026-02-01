@@ -1,20 +1,23 @@
+use crate::storage::KeyGraph;
 use aes_gcm::{
     Aes256Gcm,
     aead::{Aead, KeyInit, Nonce, OsRng, rand_core::RngCore},
 };
 use argon2::Argon2;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum EncryptorError {
-    #[error("No key found")]
-    InvalidKeyID,
+    #[error("No wrapping found for key {0} and parent {1}")]
+    InvalidWrapping(String, String),
     #[error("No root key found")]
-    InvalidRootKeyID,
+    InvalidRootKeyID(String),
+    #[error("Parent key ID is not in graph")]
+    InvalidParentKeyID(String),
     #[error("Invalid key size")]
     InvalidKeySize(usize),
+    #[error("TBD")]
+    TBD,
 
     // Dependencies
     #[error("PBKDF error")]
@@ -29,20 +32,6 @@ pub enum EncryptorError {
 }
 
 pub type Result<T> = std::result::Result<T, EncryptorError>;
-type EncryptedKey = Vec<u8>;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct KeyGraph {
-    pub version: String,
-    pub roots: Vec<String>,
-    pub nodes: HashMap<String, KeyNode>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct KeyNode {
-    pub algo: String,
-    pub wrappings: HashMap<String, EncryptedKey>,
-}
 
 #[derive(Debug)]
 pub struct KeyChain<'a> {
@@ -73,8 +62,8 @@ impl PlainKeyWrap {
 
 impl<'graph> KeyChain<'graph> {
     pub fn new(keys: &'graph KeyGraph, id: &str, password: &[u8], salt: &[u8]) -> Result<Self> {
-        if !keys.roots.contains(&id.into()) {
-            return Err(EncryptorError::InvalidKeyID);
+        if !keys.has_root(id) {
+            return Err(EncryptorError::InvalidRootKeyID(id.into()));
         }
 
         // Derive KEK with Argon2id (add argon2 crate)
@@ -96,14 +85,13 @@ impl<'graph> KeyChain<'graph> {
     }
 
     pub fn with(&self, id: &str) -> Result<Self> {
-        let encrypted_key = self
-            .keys
-            .nodes
-            .get(id)
-            .ok_or(EncryptorError::InvalidKeyID)?
-            .wrappings
-            .get(&self.current.0)
-            .ok_or(EncryptorError::InvalidKeyID)?;
+        let encrypted_key =
+            self.keys
+                .get_wrapping(id, &self.current.0)
+                .ok_or(EncryptorError::InvalidWrapping(
+                    id.to_string(),
+                    self.current.0.clone(),
+                ))?;
 
         let key: PlainKey = self.decrypt(encrypted_key)?;
 
@@ -155,18 +143,13 @@ impl<'graph> KeyChain<'graph> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use std::collections::HashMap;
-
-    const ALGO: &'static str = "aes_gcm";
-    const KEK_LABEL: &'static str = "kek";
-    const MASTER_LABEL: &'static str = "master";
-    const RECOVERY_LABEL: &'static str = "recovery";
-
-    const MASTER_KEY: PlainKey = [0u8; 32];
-    const RECOVERY_KEY: PlainKey = [1u8; 32];
+    use crate::storage::tests::{KEK_LABEL, MASTER_LABEL, RECOVERY_LABEL, sample_graph};
 
     const PASSWORD: &[u8] = b"test_password";
     const SALT: &[u8] = b"test_salt";
+
+    const MASTER_KEY: [u8; 32] = [0u8; 32];
+    const RECOVERY_KEY: [u8; 32] = [1u8; 32];
 
     #[test]
     fn test_sample_graph() {
@@ -196,46 +179,5 @@ pub(crate) mod tests {
         println!("Master: {:?}", master_encrypted);
         println!("Child: {:?}", child_encrypted);
         assert_eq!(master.1.len(), 32);
-    }
-
-    pub(crate) fn sample_graph() -> KeyGraph {
-        KeyGraph {
-            version: "0.1".to_string(),
-            roots: vec![KEK_LABEL.to_string()],
-            nodes: HashMap::from([
-                (
-                    MASTER_LABEL.to_string(),
-                    KeyNode {
-                        algo: ALGO.to_string(),
-                        wrappings: HashMap::from([(
-                            KEK_LABEL.to_string(),
-                            vec![
-                                69, 4, 131, 16, 243, 114, 55, 50, 143, 173, 62, 57, 1, 229, 144,
-                                128, 129, 175, 17, 231, 1, 255, 154, 150, 142, 17, 185, 157, 246,
-                                54, 238, 232, 106, 208, 172, 93, 101, 129, 118, 89, 214, 52, 65,
-                                46, 125, 27, 124, 78, 87, 213, 49, 77, 21, 212, 98, 123, 164, 102,
-                                21, 185,
-                            ],
-                        )]),
-                    },
-                ),
-                (
-                    RECOVERY_LABEL.to_string(),
-                    KeyNode {
-                        algo: ALGO.to_string(),
-                        wrappings: HashMap::from([(
-                            MASTER_LABEL.to_string(),
-                            vec![
-                                113, 94, 4, 21, 212, 215, 60, 86, 124, 33, 224, 244, 41, 8, 63, 99,
-                                159, 79, 62, 168, 103, 43, 90, 189, 165, 44, 225, 170, 159, 175,
-                                229, 65, 95, 177, 249, 29, 137, 123, 38, 224, 189, 84, 143, 73,
-                                156, 126, 42, 147, 25, 204, 53, 112, 107, 102, 91, 246, 131, 162,
-                                139, 151,
-                            ],
-                        )]),
-                    },
-                ),
-            ]),
-        }
     }
 }
