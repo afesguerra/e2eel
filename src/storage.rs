@@ -4,7 +4,7 @@ use crate::{EncryptorError, core::Result};
 pub use json::JsonStorage;
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 pub trait KeyStorage {
     fn load(&self) -> Result<KeyGraph>;
@@ -89,6 +89,53 @@ impl KeyGraph {
     pub fn get_wrapping(&self, id: &str, parent: &str) -> Option<&Vec<u8>> {
         self.nodes.get(id)?.wrappings.get(&parent.to_string())
     }
+
+    pub(crate) fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>> {
+        let src = src.to_string();
+        let dest = dest.to_string();
+
+        if src == dest {
+            return Some(vec![src]);
+        }
+
+        if !self.has_root_or_node(&src) || !self.has_root_or_node(&dest) {
+            return None;
+        }
+        // Lazy reverse BFS: dest -> ... -> src (no full adj build)
+        let mut queue = VecDeque::new();
+        queue.push_back(dest.clone());
+
+        let mut visited = HashSet::new();
+        visited.insert(dest.clone());
+
+        let mut parent: HashMap<String, String> = HashMap::new();
+
+        while let Some(curr) = queue.pop_front() {
+            if curr == src {
+                // Reconstruct: src <- ... <- dest → reverse to src -> dest
+                let mut path = vec![src.clone()];
+                let mut at = src;
+                while at != dest {
+                    at = parent.get(&at).cloned()?;
+                    path.push(at.clone());
+                }
+                return Some(path);
+            }
+
+            // Forward neighbors: parents of curr (direct from its wrappings keys)
+            if let Some(node) = self.nodes.get(&curr) {
+                for parent_id in node.wrappings.keys() {
+                    let p = parent_id.as_str();
+                    if !visited.contains(p) {
+                        visited.insert(p.to_string());
+                        parent.insert(p.to_string(), curr.clone());
+                        queue.push_back(p.to_string());
+                    }
+                }
+            }
+        }
+        None
+    }
 }
 
 #[cfg(test)]
@@ -113,20 +160,18 @@ pub(crate) mod tests {
     ];
 
     #[test]
-    fn test_add_node() {
-        let mut graph = KeyGraph::new();
+    fn test_shortest_path() {
+        let graph = sample_graph();
 
-        graph
-            .add_root(KEK_LABEL)
-            .expect("Unable to add KEK as root");
-        graph
-            .add_wrapping(MASTER_LABEL, ALGO, KEK_LABEL, &MASTER_KEY)
-            .expect("Failed to add wrapping for master key encrypted with kek");
-        graph
-            .add_wrapping(RECOVERY_LABEL, ALGO, MASTER_LABEL, &RECOVERY_KEY)
-            .expect("Failed to add wrapping for recovery key encrypted with master key");
-
-        assert_eq!(sample_graph(), graph);
+        let shortest_path = graph.find_shortest_path(KEK_LABEL, RECOVERY_LABEL);
+        assert_eq!(
+            shortest_path.unwrap(),
+            vec![
+                KEK_LABEL.to_string(),
+                MASTER_LABEL.to_string(),
+                RECOVERY_LABEL.to_string()
+            ]
+        );
     }
 
     pub(crate) fn sample_graph() -> KeyGraph {
