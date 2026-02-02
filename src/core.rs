@@ -1,8 +1,4 @@
 use crate::{KeyStorage, storage::KeyGraph};
-use aes_gcm::{
-    Aes256Gcm,
-    aead::{Aead, KeyInit, Nonce, OsRng, rand_core::RngCore},
-};
 use argon2::Argon2;
 use thiserror::Error;
 
@@ -84,32 +80,57 @@ impl<S: KeyStorage> KeyChain<S> {
         Ok(key)
     }
 
+    pub fn add_wrapping(&mut self, parent_id: &str, key_id: &str) -> Result<()> {
+        let key = self.new_key()?;
+        let parent = self.get_key(parent_id)?;
+
+        let encrypted_key = self._encrypt(&parent, &key)?;
+
+        self.keys
+            .add_wrapping(key_id, "algorithm_TBD", parent_id, &encrypted_key)
+    }
+
     pub fn reload(&mut self) -> Result<()> {
         self.keys = self.storage.load()?;
         Ok(())
     }
 
-    fn decrypt(&self, key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-        let cipher = Aes256Gcm::new(key.into());
-        let nonce = Nonce::<Aes256Gcm>::from_slice(&data[..12]);
-        let ciphertext = &data[12..];
+    pub fn persist(&mut self) -> Result<()> {
+        self.storage.save(&self.keys)
+    }
 
-        cipher
-            .decrypt(&nonce, ciphertext)
+    fn new_key(&self) -> Result<Vec<u8>> {
+        use aes_gcm::aead::KeyInit;
+        use aes_gcm::{Aes256Gcm, aead::OsRng};
+
+        let key = Aes256Gcm::generate_key(OsRng);
+        Ok(key.to_vec())
+    }
+
+    fn decrypt(&self, key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+        use aes_gcm::{
+            Aes256Gcm,
+            aead::{Aead, KeyInit},
+        };
+
+        let (nonce, ciphertext) = data.split_at(12);
+
+        Aes256Gcm::new(key.into())
+            .decrypt(nonce.into(), ciphertext)
             .map_err(EncryptorError::Crypto)
     }
 
-    #[cfg(test)]
-    fn encrypt(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let key = &self.root;
-        let cipher = Aes256Gcm::new(aes_gcm::Key::<Aes256Gcm>::from_slice(key));
+    fn _encrypt(&self, parent: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+        use aes_gcm::{
+            AeadCore, Aes256Gcm,
+            aead::{Aead, KeyInit, OsRng},
+        };
 
-        let mut nonce = [0u8; 12];
-        OsRng.fill_bytes(&mut nonce); // Fresh random nonce!
-        let nonce = Nonce::<Aes256Gcm>::from_slice(&nonce);
+        let nonce = Aes256Gcm::generate_nonce(OsRng);
+        let cipher = Aes256Gcm::new_from_slice(parent).map_err(|_| EncryptorError::TBD)?;
 
         let ciphertext = cipher
-            .encrypt(nonce, data)
+            .encrypt(&nonce, data)
             .map_err(EncryptorError::Crypto)?;
 
         let mut result = Vec::with_capacity(12 + ciphertext.len());
@@ -144,7 +165,7 @@ pub(crate) mod tests {
             Ok(sample_graph())
         }
 
-        fn save(&self, keys: &KeyGraph) -> Result<()> {
+        fn save(&self, _keys: &KeyGraph) -> Result<()> {
             todo!()
         }
     }
