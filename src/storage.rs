@@ -13,14 +13,12 @@ pub trait KeyStorage {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 struct KeyNode {
-    algo: String,
     wrappings: HashMap<String, Vec<u8>>,
 }
 
 impl KeyNode {
-    fn new(algo: &str) -> Self {
+    fn new() -> Self {
         Self {
-            algo: algo.to_string(),
             wrappings: HashMap::new(),
         }
     }
@@ -65,23 +63,20 @@ impl KeyGraph {
         Ok(())
     }
 
-    pub fn add_wrapping(
-        &mut self,
-        id: &str,
-        algorithm: &str,
-        parent: &str,
-        data: &[u8],
-    ) -> Result<()> {
+    pub fn add_wrapping(&mut self, id: &str, parent: &str, data: &[u8]) -> Result<()> {
         if !self.has_root_or_node(parent) {
             return Err(EncryptorError::InvalidParentKeyID(parent.to_string()));
         }
 
         if !self.has_node(id) {
-            let new_node = KeyNode::new(algorithm);
+            let new_node = KeyNode::new();
             self.nodes.insert(id.into(), new_node);
         }
 
-        let node = self.nodes.get_mut(id).ok_or(EncryptorError::TBD)?;
+        let node = self
+            .nodes
+            .get_mut(id)
+            .ok_or(EncryptorError::InvalidKeyID(id.to_string()))?;
         node.add_wrapping(parent, data);
         Ok(())
     }
@@ -90,7 +85,7 @@ impl KeyGraph {
         self.nodes.get(id)?.wrappings.get(&parent.to_string())
     }
 
-    pub(crate) fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>> {
+    pub fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>> {
         let src = src.to_string();
         let dest = dest.to_string();
 
@@ -139,64 +134,24 @@ impl KeyGraph {
 }
 
 #[cfg(test)]
-pub(crate) mod tests {
-    use super::*;
-
-    pub(crate) const ALGO: &'static str = "aes_gcm";
-    pub(crate) const KEK_LABEL: &'static str = "kek";
-    pub(crate) const MASTER_LABEL: &'static str = "master";
-    pub(crate) const RECOVERY_LABEL: &'static str = "recovery";
-
-    pub(crate) const MASTER_KEY: [u8; 60] = [
-        69, 4, 131, 16, 243, 114, 55, 50, 143, 173, 62, 57, 1, 229, 144, 128, 129, 175, 17, 231, 1,
-        255, 154, 150, 142, 17, 185, 157, 246, 54, 238, 232, 106, 208, 172, 93, 101, 129, 118, 89,
-        214, 52, 65, 46, 125, 27, 124, 78, 87, 213, 49, 77, 21, 212, 98, 123, 164, 102, 21, 185,
-    ];
-    pub(crate) const RECOVERY_KEY: [u8; 60] = [
-        113, 94, 4, 21, 212, 215, 60, 86, 124, 33, 224, 244, 41, 8, 63, 99, 159, 79, 62, 168, 103,
-        43, 90, 189, 165, 44, 225, 170, 159, 175, 229, 65, 95, 177, 249, 29, 137, 123, 38, 224,
-        189, 84, 143, 73, 156, 126, 42, 147, 25, 204, 53, 112, 107, 102, 91, 246, 131, 162, 139,
-        151,
-    ];
+mod tests {
+    use crate::test_data::*;
 
     #[test]
     fn test_shortest_path() {
         let graph = sample_graph();
 
-        let shortest_path = graph.find_shortest_path(KEK_LABEL, RECOVERY_LABEL);
+        let shortest_path = graph
+            .find_shortest_path(KEK_LABEL, RECOVERY_LABEL)
+            .expect("Cannot find path between KEK and RECOVERY");
+
         assert_eq!(
-            shortest_path.unwrap(),
+            shortest_path,
             vec![
                 KEK_LABEL.to_string(),
                 MASTER_LABEL.to_string(),
                 RECOVERY_LABEL.to_string()
             ]
         );
-    }
-
-    pub(crate) fn sample_graph() -> KeyGraph {
-        KeyGraph {
-            version: CURRENT_VERSION.to_string(),
-            roots: vec![KEK_LABEL.to_string()],
-            nodes: HashMap::from([
-                (
-                    MASTER_LABEL.to_string(),
-                    KeyNode {
-                        algo: ALGO.to_string(),
-                        wrappings: HashMap::from([(KEK_LABEL.to_string(), MASTER_KEY.to_vec())]),
-                    },
-                ),
-                (
-                    RECOVERY_LABEL.to_string(),
-                    KeyNode {
-                        algo: ALGO.to_string(),
-                        wrappings: HashMap::from([(
-                            MASTER_LABEL.to_string(),
-                            RECOVERY_KEY.to_vec(),
-                        )]),
-                    },
-                ),
-            ]),
-        }
     }
 }

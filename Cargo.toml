@@ -1,10 +1,15 @@
 [package]
-name = "inariward"
+name = "e2eel"
+description = "A Rust end-to-end encryption library for key management"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.93"
+license = "LGPL-3.0-or-later"
+repository = "https://gitlab.com/afesguerra/e2eel"
+
 
 [dependencies]
-aes-gcm = "0.10.3"
+aes-gcm = { version = "0.10.3", features = ["std"] }
 argon2 = { version = "0.5", features = ["std"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

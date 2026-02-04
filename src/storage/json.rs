@@ -28,11 +28,13 @@ impl KeyStorage for JsonStorage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::tests::sample_graph;
+    use crate::test_data::sample_graph;
+
+    const JSON_PATH: &str = "testdata/serde.json";
 
     #[test]
     fn test_load_json() {
-        let key_chain = JsonStorage::new("testdata/serde.json".to_string());
+        let key_chain = JsonStorage::new(JSON_PATH.to_string());
         let result = key_chain.load();
         print!("Result {:?}", result);
         assert_eq!(result.is_ok(), true);
@@ -43,7 +45,7 @@ mod tests {
     fn test_save_json() {
         let keys = sample_graph();
 
-        let key_chain = JsonStorage::new("testdata/serde.json".to_string());
+        let key_chain = JsonStorage::new(JSON_PATH.to_string());
         println!("KeyTree: {:?}", keys);
         let result = key_chain.save(&keys);
         assert_eq!(result.is_ok(), true);

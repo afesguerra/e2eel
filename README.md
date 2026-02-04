@@ -1,4 +1,4 @@
-# Inari
+# e2eel
 
 A Rust library for end-to-end encryption key management using a Directed Acyclic Graph (DAG) of encrypted keys.
 Purpose
