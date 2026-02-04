@@ -1,15 +1,7 @@
-mod json;
-
-use crate::{EncryptorError, core::Result};
-pub use json::JsonStorage;
+use crate::{EncryptorError, Result};
 
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
-
-pub trait KeyStorage {
-    fn load(&self) -> Result<KeyGraph>;
-    fn save(&self, keys: &KeyGraph) -> Result<()>;
-}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 struct KeyNode {
