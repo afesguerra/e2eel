@@ -10,7 +10,6 @@ pub struct KeyChain<S: KeyStorage> {
 
 impl<S: KeyStorage> KeyChain<S> {
     pub fn new(storage: S, root: &str, password: &[u8], salt: &[u8]) -> Result<Self> {
-        // Derive KEK with Argon2id (add argon2 crate)
         let mut kek = [0u8; 32];
         Argon2::default().hash_password_into(password, salt, &mut kek)?;
 
