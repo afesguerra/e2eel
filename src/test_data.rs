@@ -1,4 +1,6 @@
 use super::*;
+use std::array::from_fn;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 pub const KEK_LABEL: &str = "kek";
 pub const MASTER_LABEL: &str = "master";
@@ -6,6 +8,11 @@ pub const RECOVERY_LABEL: &str = "recovery";
 
 pub const MASTER_KEY_PLAIN: [u8; 32] = [0u8; 32];
 pub const RECOVERY_KEY_PLAIN: [u8; 32] = [1u8; 32];
+
+pub const KEK_PLAIN: [u8; 32] = [
+    199, 38, 76, 248, 232, 20, 77, 19, 252, 96, 76, 89, 136, 183, 188, 134, 189, 54, 116, 38, 238,
+    35, 79, 177, 113, 98, 225, 174, 87, 35, 113, 98,
+];
 
 const MASTER_KEY: [u8; 60] = [
     69, 4, 131, 16, 243, 114, 55, 50, 143, 173, 62, 57, 1, 229, 144, 128, 129, 175, 17, 231, 1,
@@ -28,6 +35,32 @@ impl KeyStorage for TestKeyStorage {
 
     fn save(&self, _keys: &KeyGraph) -> Result<()> {
         todo!()
+    }
+}
+
+pub fn array_from_mul(mul: &u8) -> [u8; 32] {
+    from_fn(|i| (i as u8) * mul)
+}
+
+pub struct TestCrypto;
+
+static COUNTER: AtomicU8 = AtomicU8::new(1);
+
+impl CryptoProvider for TestCrypto {
+    fn generate_key(&self) -> Result<Vec<u8>> {
+        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let data = array_from_mul(&n);
+        Ok(data.to_vec())
+    }
+
+    fn encrypt(&self, _key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
+        let mut data = plaintext.to_vec();
+        data.reverse();
+        Ok(data)
+    }
+
+    fn decrypt(&self, key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
+        self.encrypt(key, ciphertext)
     }
 }
 

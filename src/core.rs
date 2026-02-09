@@ -13,8 +13,6 @@ pub enum EncryptorError {
     NoSuchPath(String),
 
     // Dependencies
-    #[error("PBKDF error")]
-    PBKDF(#[from] argon2::Error),
     #[error("Crypto error")]
     Crypto(#[from] aes_gcm::Error),
     #[error("JSON (de)serialization error")]

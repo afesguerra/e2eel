@@ -1,9 +1,9 @@
 use crate::{EncryptorError, Result};
 
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq)]
 struct KeyNode {
     wrappings: HashMap<String, Vec<u8>>,
 }
@@ -20,7 +20,8 @@ impl KeyNode {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq)]
 pub struct KeyGraph {
     version: String,
     roots: Vec<String>,

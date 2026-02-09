@@ -9,13 +9,13 @@ repository = "https://gitlab.com/afesguerra/e2eel"
 
 
 [dependencies]
-aes-gcm = { version = "0.10.3", features = ["std"] }
-argon2 = { version = "0.5", features = ["std"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+aes-gcm = { version = "0.10.3", features = ["std"], optional = true }
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
 thiserror = "2.0.18"
 zeroize = "1.8.2"
 
 [features]
-default = ["json"]  # Enabled always unless --no-default-features
-json = []           # No-op (core HashMap/serde_json)
+default = ["json", "aes256-gcm"]  # Enabled always unless --no-default-features
+json = ["dep:serde", "dep:serde_json"]
+aes256-gcm = ["dep:aes-gcm"]

@@ -1,23 +1,42 @@
 use crate::{EncryptorError, KeyGraph, KeyStorage, Result};
-use argon2::Argon2;
 
-pub struct KeyChain<S: KeyStorage> {
+#[cfg(feature = "aes256-gcm")]
+pub mod aes256;
+
+/// Trait for encryption/decryption implementations
+pub trait CryptoProvider: Send + Sync {
+    /// Encrypt data with a key
+    fn encrypt(&self, key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>>;
+    /// Decrypt data with a key
+    fn decrypt(&self, key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>>;
+    /// Generate a new encryption key
+    fn generate_key(&self) -> Result<Vec<u8>>;
+}
+
+pub struct KeyChain<S, C>
+where
+    S: KeyStorage,
+    C: CryptoProvider,
+{
     storage: S,
     keys: KeyGraph,
     root_id: String,
     root: Vec<u8>,
+    crypto: C,
 }
 
-impl<S: KeyStorage> KeyChain<S> {
-    pub fn new(storage: S, root: &str, password: &[u8], salt: &[u8]) -> Result<Self> {
-        let mut kek = [0u8; 32];
-        Argon2::default().hash_password_into(password, salt, &mut kek)?;
-
+impl<S, C> KeyChain<S, C>
+where
+    S: KeyStorage,
+    C: CryptoProvider,
+{
+    pub fn new(storage: S, crypto: C, root_id: &str, root: &[u8]) -> Result<Self> {
         Ok(Self {
-            storage: storage,
+            storage,
+            crypto,
             keys: KeyGraph::new(),
-            root_id: root.into(),
-            root: kek.into(),
+            root_id: root_id.into(),
+            root: root.into(),
         })
     }
 
@@ -42,7 +61,7 @@ impl<S: KeyStorage> KeyChain<S> {
                         key_id.clone(),
                     ))?;
 
-            key = self.decrypt(&key, encrypted_key)?;
+            key = self.crypto.decrypt(&key, encrypted_key)?;
             key_id = node_id;
         }
 
@@ -50,10 +69,10 @@ impl<S: KeyStorage> KeyChain<S> {
     }
 
     pub fn add_wrapping(&mut self, parent_id: &str, key_id: &str) -> Result<()> {
-        let key = self.new_key()?;
+        let key = self.crypto.generate_key()?;
         let parent = self.get_key(parent_id)?;
 
-        let encrypted_key = self.encrypt(&parent, &key)?;
+        let encrypted_key = self.crypto.encrypt(&parent, &key)?;
 
         self.keys.add_wrapping(key_id, parent_id, &encrypted_key)
     }
@@ -70,58 +89,29 @@ impl<S: KeyStorage> KeyChain<S> {
     pub fn persist(&mut self) -> Result<()> {
         self.storage.save(&self.keys)
     }
-
-    fn new_key(&self) -> Result<Vec<u8>> {
-        use aes_gcm::aead::KeyInit;
-        use aes_gcm::{Aes256Gcm, aead::OsRng};
-
-        let key = Aes256Gcm::generate_key(OsRng);
-        Ok(key.to_vec())
-    }
-
-    fn decrypt(&self, key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-        use aes_gcm::{
-            Aes256Gcm,
-            aead::{Aead, KeyInit},
-        };
-
-        let (nonce, ciphertext) = data.split_at(12);
-
-        let result = Aes256Gcm::new(key.into()).decrypt(nonce.into(), ciphertext)?;
-        Ok(result)
-    }
-
-    fn encrypt(&self, parent: &[u8], data: &[u8]) -> Result<Vec<u8>> {
-        use aes_gcm::{
-            AeadCore, Aes256Gcm,
-            aead::{Aead, KeyInit, OsRng},
-        };
-
-        let cipher = Aes256Gcm::new_from_slice(parent)?;
-        let nonce = Aes256Gcm::generate_nonce(OsRng);
-        let ciphertext = cipher.encrypt(&nonce, data)?;
-
-        let mut result = Vec::with_capacity(12 + ciphertext.len());
-        result.extend_from_slice(&nonce);
-        result.extend_from_slice(&ciphertext);
-
-        Ok(result)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_data::*;
+    use std::array::from_fn;
 
-    const PASSWORD: &[u8] = b"test_password";
-    const SALT: &[u8] = b"test_salt";
+    const KEK: [u8; 32] = [0u8; 32];
+
+    fn array_from_mul(mul: &u8) -> [u8; 32] {
+        from_fn(|i| (i as u8) * mul)
+    }
 
     #[test]
     fn test_create_graph() {
-        let mut keychain =
-            KeyChain::<TestKeyStorage>::new(TestKeyStorage {}, KEK_LABEL, PASSWORD, SALT)
-                .expect("KeyChain creation failed");
+        let mut keychain = KeyChain::<TestKeyStorage, TestCrypto>::new(
+            TestKeyStorage {},
+            TestCrypto {},
+            KEK_LABEL,
+            &KEK,
+        )
+        .expect("KeyChain creation failed");
 
         keychain
             .add_root(KEK_LABEL)
@@ -133,20 +123,34 @@ mod tests {
             .add_wrapping(MASTER_LABEL, RECOVERY_LABEL)
             .expect("Wrapping recovery failed");
 
-        print!("Graph {:#?}", keychain.keys);
-    }
+        let mut master_key = array_from_mul(&1);
+        let mut recovery_key = array_from_mul(&2);
+        assert_eq!(master_key.to_vec(), keychain.get_key(MASTER_LABEL).unwrap());
+        assert_eq!(
+            recovery_key.to_vec(),
+            keychain.get_key(RECOVERY_LABEL).unwrap()
+        );
 
-    #[test]
-    fn test_sample_graph() {
-        let mut keychain =
-            KeyChain::<TestKeyStorage>::new(TestKeyStorage {}, KEK_LABEL, PASSWORD, SALT).unwrap();
+        master_key.reverse();
+        recovery_key.reverse();
 
-        keychain.fetch().expect("Failed to fetch key graph");
-
-        let master_key = keychain.get_key(MASTER_LABEL).unwrap();
-        let recovery_key = keychain.get_key(RECOVERY_LABEL).unwrap();
-
-        assert_eq!(master_key, MASTER_KEY_PLAIN);
-        assert_eq!(recovery_key, RECOVERY_KEY_PLAIN);
+        assert_eq!(
+            master_key,
+            keychain
+                .keys
+                .get_wrapping(MASTER_LABEL, KEK_LABEL)
+                .unwrap()
+                .clone()
+                .as_mut_slice()
+        );
+        assert_eq!(
+            recovery_key,
+            keychain
+                .keys
+                .get_wrapping(RECOVERY_LABEL, MASTER_LABEL)
+                .unwrap()
+                .clone()
+                .as_mut_slice()
+        );
     }
 }
