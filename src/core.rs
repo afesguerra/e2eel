@@ -21,8 +21,6 @@ pub enum EncryptorError {
     IO(#[from] std::io::Error),
     #[error("Invalid key size")]
     InvalidKeySize(#[from] InvalidLength),
-    #[error("Invalid key size")]
-    InvalidData(usize),
     // Add more...
 }
 

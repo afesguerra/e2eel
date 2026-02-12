@@ -128,6 +128,7 @@ impl KeyGraph {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::test_data::*;
 
     #[test]
@@ -146,5 +147,24 @@ mod tests {
                 RECOVERY_LABEL.to_string()
             ]
         );
+    }
+
+    #[test]
+    fn test_multiple_paths() {
+        let mock_data = [0u8; 1];
+        let mut graph = KeyGraph::new();
+
+        graph.add_root("root").unwrap();
+        graph.add_wrapping("nodeA1", "root", &mock_data).unwrap();
+        graph.add_wrapping("nodeB1", "root", &mock_data).unwrap();
+
+        graph.add_wrapping("nodeA2", "nodeA1", &mock_data).unwrap();
+        graph.add_wrapping("nodeC", "nodeA2", &mock_data).unwrap();
+        graph.add_wrapping("nodeC", "nodeB1", &mock_data).unwrap();
+
+        assert_eq!(
+            vec!["root", "nodeB1", "nodeC"],
+            graph.find_shortest_path("root", "nodeC").unwrap()
+        )
     }
 }

@@ -6,9 +6,10 @@ pub mod aes256;
 /// Trait for encryption/decryption implementations
 pub trait CryptoProvider: Send + Sync {
     type Key: AsRef<[u8]> + Clone;
+    type EncryptedKey: AsRef<[u8]> + Clone;
 
     /// Encrypt data with a key
-    fn encrypt(&self, key: &Self::Key, plaintext: &Self::Key) -> Result<Vec<u8>>;
+    fn encrypt(&self, key: &Self::Key, plaintext: &Self::Key) -> Result<Self::EncryptedKey>;
     /// Decrypt data with a key
     fn decrypt(&self, key: &Self::Key, ciphertext: &[u8]) -> Result<Self::Key>;
     /// Generate a new encryption key
@@ -76,7 +77,7 @@ where
 
         let encrypted_key = self.crypto.encrypt(&parent, &key)?;
 
-        self.keys.add_wrapping(key_id, parent_id, &encrypted_key)
+        self.keys.add_wrapping(key_id, parent_id, encrypted_key.as_ref())
     }
 
     pub fn add_root(&mut self, key_id: &str) -> Result<()> {
