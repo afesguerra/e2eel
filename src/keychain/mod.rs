@@ -5,12 +5,14 @@ pub mod aes256;
 
 /// Trait for encryption/decryption implementations
 pub trait CryptoProvider: Send + Sync {
+    type Key: AsRef<[u8]> + Clone;
+
     /// Encrypt data with a key
-    fn encrypt(&self, key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>>;
+    fn encrypt(&self, key: &Self::Key, plaintext: &Self::Key) -> Result<Vec<u8>>;
     /// Decrypt data with a key
-    fn decrypt(&self, key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>>;
+    fn decrypt(&self, key: &Self::Key, ciphertext: &[u8]) -> Result<Self::Key>;
     /// Generate a new encryption key
-    fn generate_key(&self) -> Result<Vec<u8>>;
+    fn generate_key(&self) -> Result<Self::Key>;
 }
 
 pub struct KeyChain<S, C>
@@ -21,7 +23,7 @@ where
     storage: S,
     keys: KeyGraph,
     root_id: String,
-    root: Vec<u8>,
+    root: C::Key,
     crypto: C,
 }
 
@@ -30,17 +32,17 @@ where
     S: KeyStorage,
     C: CryptoProvider,
 {
-    pub fn new(storage: S, crypto: C, root_id: &str, root: &[u8]) -> Result<Self> {
+    pub fn new(storage: S, crypto: C, root_id: &str, root: &C::Key) -> Result<Self> {
         Ok(Self {
             storage,
             crypto,
             keys: KeyGraph::new(),
             root_id: root_id.into(),
-            root: root.into(),
+            root: root.clone(),
         })
     }
 
-    pub fn get_key(&self, id: &str) -> Result<Vec<u8>> {
+    pub fn get_key(&self, id: &str) -> Result<C::Key> {
         let path =
             self.keys
                 .find_shortest_path(&self.root_id, id)

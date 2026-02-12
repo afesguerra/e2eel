@@ -1,3 +1,5 @@
+use aes_gcm::aes::cipher::InvalidLength;
+
 use super::*;
 use std::array::from_fn;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -47,20 +49,24 @@ pub struct TestCrypto;
 static COUNTER: AtomicU8 = AtomicU8::new(1);
 
 impl CryptoProvider for TestCrypto {
-    fn generate_key(&self) -> Result<Vec<u8>> {
+    type Key = [u8; 32];
+
+    fn generate_key(&self) -> Result<Self::Key> {
         let n = COUNTER.fetch_add(1, Ordering::Relaxed);
         let data = array_from_mul(&n);
-        Ok(data.to_vec())
-    }
-
-    fn encrypt(&self, _key: &[u8], plaintext: &[u8]) -> Result<Vec<u8>> {
-        let mut data = plaintext.to_vec();
-        data.reverse();
         Ok(data)
     }
 
-    fn decrypt(&self, key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>> {
-        self.encrypt(key, ciphertext)
+    fn encrypt(&self, _key: &Self::Key, plaintext: &Self::Key) -> Result<Vec<u8>> {
+        let mut data = plaintext.clone();
+        data.reverse();
+        Ok(data.to_vec())
+    }
+
+    fn decrypt(&self, _key: &Self::Key, ciphertext: &[u8]) -> Result<Self::Key> {
+        let mut data: Self::Key = ciphertext.try_into().map_err(|_| InvalidLength)?;
+        data.reverse();
+        Ok(data)
     }
 }
 

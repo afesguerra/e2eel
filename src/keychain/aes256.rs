@@ -1,31 +1,38 @@
 use aes_gcm::{
     AeadCore, Aes256Gcm,
     aead::{Aead, KeyInit, OsRng},
+    aes::cipher::InvalidLength,
 };
 
 use crate::{CryptoProvider, Result};
 
 pub struct Aes256GcmProvider;
 
-impl CryptoProvider for Aes256GcmProvider {
-    fn generate_key(&self) -> Result<Vec<u8>> {
-        use aes_gcm::aead::KeyInit;
-        use aes_gcm::{Aes256Gcm, aead::OsRng};
+impl Aes256GcmProvider {
+    const KEY_SIZE: usize = 32;
+}
 
+impl CryptoProvider for Aes256GcmProvider {
+    type Key = [u8; Self::KEY_SIZE];
+
+    fn generate_key(&self) -> Result<Self::Key> {
         let key = Aes256Gcm::generate_key(OsRng);
-        Ok(key.to_vec())
+        Ok(key.into())
     }
-    fn decrypt(&self, key: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    fn decrypt(&self, key: &[u8; 32], data: &[u8]) -> Result<Self::Key> {
         let (nonce, ciphertext) = data.split_at(12);
 
-        let result = Aes256Gcm::new(key.into()).decrypt(nonce.into(), ciphertext)?;
+        let result: Self::Key = Aes256Gcm::new(key.into())
+            .decrypt(nonce.into(), ciphertext)?
+            .try_into()
+            .map_err(|_| InvalidLength)?;
         Ok(result)
     }
 
-    fn encrypt(&self, parent: &[u8], data: &[u8]) -> Result<Vec<u8>> {
+    fn encrypt(&self, parent: &Self::Key, data: &Self::Key) -> Result<Vec<u8>> {
         let cipher = Aes256Gcm::new_from_slice(parent)?;
         let nonce = Aes256Gcm::generate_nonce(OsRng);
-        let ciphertext = cipher.encrypt(&nonce, data)?;
+        let ciphertext = cipher.encrypt(&nonce, data.as_slice())?;
 
         let mut result = Vec::with_capacity(12 + ciphertext.len());
         result.extend_from_slice(&nonce);
