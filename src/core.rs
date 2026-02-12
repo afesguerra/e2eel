@@ -1,8 +1,7 @@
 use aes_gcm::aes::cipher::InvalidLength;
-use thiserror::Error;
 
-#[derive(Debug, Error)]
-pub enum EncryptorError {
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
     #[error("No wrapping found for key {0} and parent {1}")]
     InvalidWrapping(String, String),
     #[error("Key {0} not found")]
@@ -24,4 +23,4 @@ pub enum EncryptorError {
     // Add more...
 }
 
-pub type Result<T> = std::result::Result<T, EncryptorError>;
+pub type Result<T> = std::result::Result<T, Error>;

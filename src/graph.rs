@@ -1,4 +1,4 @@
-use crate::{EncryptorError, Result};
+use crate::{Error, Result};
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -58,7 +58,7 @@ impl KeyGraph {
 
     pub fn add_wrapping(&mut self, id: &str, parent: &str, data: &[u8]) -> Result<()> {
         if !self.has_root_or_node(parent) {
-            return Err(EncryptorError::InvalidParentKeyID(parent.to_string()));
+            return Err(Error::InvalidParentKeyID(parent.to_string()));
         }
 
         if !self.has_node(id) {
@@ -69,7 +69,7 @@ impl KeyGraph {
         let node = self
             .nodes
             .get_mut(id)
-            .ok_or(EncryptorError::InvalidKeyID(id.to_string()))?;
+            .ok_or(Error::InvalidKeyID(id.to_string()))?;
         node.add_wrapping(parent, data);
         Ok(())
     }

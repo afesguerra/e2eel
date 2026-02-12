@@ -1,4 +1,4 @@
-use crate::{EncryptorError, KeyGraph, KeyStorage, Result};
+use crate::{Error, KeyGraph, KeyStorage, Result};
 
 #[cfg(feature = "aes256-gcm")]
 pub mod aes256;
@@ -47,7 +47,7 @@ where
         let path =
             self.keys
                 .find_shortest_path(&self.root_id, id)
-                .ok_or(EncryptorError::NoSuchPath(format!(
+                .ok_or(Error::NoSuchPath(format!(
                     "There is no path from {} to {}",
                     self.root_id, id
                 )))?;
@@ -59,7 +59,7 @@ where
             let encrypted_key =
                 self.keys
                     .get_wrapping(node_id, &key_id)
-                    .ok_or(EncryptorError::InvalidWrapping(
+                    .ok_or(Error::InvalidWrapping(
                         node_id.clone(),
                         key_id.clone(),
                     ))?;
