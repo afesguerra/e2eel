@@ -1,5 +1,3 @@
-use aes_gcm::aes::cipher::InvalidLength;
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("No wrapping found for key {0} and parent {1}")]
@@ -10,16 +8,20 @@ pub enum Error {
     InvalidParentKeyID(String),
     #[error("Key graph error: {0}")]
     NoSuchPath(String),
+    #[error("Generic error: {0}")]
+    Generic(String),
 
     // Dependencies
     #[error("Crypto error")]
-    Crypto(#[from] aes_gcm::Error),
+    Crypto(#[from] aead::Error),
+    #[cfg(feature = "json")]
     #[error("JSON (de)serialization error")]
     JSON(#[from] serde_json::Error),
     #[error("IO error")]
     IO(#[from] std::io::Error),
+    #[cfg(feature = "aes256-gcm")]
     #[error("Invalid key size")]
-    InvalidKeySize(#[from] InvalidLength),
+    InvalidKeySize(#[from] aes_gcm::aes::cipher::InvalidLength),
     // Add more...
 }
 

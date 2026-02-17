@@ -1,5 +1,3 @@
-use aes_gcm::aes::cipher::InvalidLength;
-
 use super::*;
 use std::array::from_fn;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -7,14 +5,6 @@ use std::sync::atomic::{AtomicU8, Ordering};
 pub const KEK_LABEL: &str = "kek";
 pub const MASTER_LABEL: &str = "master";
 pub const RECOVERY_LABEL: &str = "recovery";
-
-pub const MASTER_KEY_PLAIN: [u8; 32] = [0u8; 32];
-pub const RECOVERY_KEY_PLAIN: [u8; 32] = [1u8; 32];
-
-pub const KEK_PLAIN: [u8; 32] = [
-    199, 38, 76, 248, 232, 20, 77, 19, 252, 96, 76, 89, 136, 183, 188, 134, 189, 54, 116, 38, 238,
-    35, 79, 177, 113, 98, 225, 174, 87, 35, 113, 98,
-];
 
 const MASTER_KEY: [u8; 60] = [
     69, 4, 131, 16, 243, 114, 55, 50, 143, 173, 62, 57, 1, 229, 144, 128, 129, 175, 17, 231, 1,
@@ -65,7 +55,9 @@ impl CryptoProvider for TestCrypto {
     }
 
     fn decrypt(&self, _key: &Self::Key, ciphertext: &[u8]) -> Result<Self::Key> {
-        let mut data: Self::Key = ciphertext.try_into().map_err(|_| InvalidLength)?;
+        let mut data: Self::Key = ciphertext
+            .try_into()
+            .expect("Cannot convert cipherText into Key");
         data.reverse();
         Ok(data)
     }

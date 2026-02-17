@@ -1,25 +1,25 @@
-use aes_gcm::{
-    AeadCore, Aes256Gcm,
-    aead::{Aead, KeyInit, OsRng},
+use crypto_secretbox::{
+    XSalsa20Poly1305,
+    aead::{Aead, AeadCore, KeyInit, OsRng},
 };
 
 use crate::{CryptoProvider, Error, Result};
 
-pub struct Aes256GcmProvider;
+pub struct XSalsa20Poly1305Provider;
 
-impl CryptoProvider for Aes256GcmProvider {
+impl CryptoProvider for XSalsa20Poly1305Provider {
     type Key = [u8; 32];
-    type EncryptedKey = [u8; 60];
+    type EncryptedKey = [u8; 72]; // 24 bytes nonce + 32 bytes ciphertext + 16 bytes tag
 
     fn generate_key(&self) -> Result<Self::Key> {
-        let key = Aes256Gcm::generate_key(OsRng);
+        let key = XSalsa20Poly1305::generate_key(OsRng);
         Ok(key.into())
     }
 
     fn decrypt(&self, key: &Self::Key, data: &[u8]) -> Result<Self::Key> {
-        let (nonce, ciphertext) = data.split_at(12);
+        let (nonce, ciphertext) = data.split_at(24);
 
-        let result: Self::Key = Aes256Gcm::new(key.into())
+        let result: Self::Key = XSalsa20Poly1305::new(key.into())
             .decrypt(nonce.into(), ciphertext)?
             .try_into()
             .map_err(|_| Error::Generic("Decrypted data has incorrect length".to_string()))?;
@@ -27,13 +27,13 @@ impl CryptoProvider for Aes256GcmProvider {
     }
 
     fn encrypt(&self, parent: &Self::Key, data: &Self::Key) -> Result<Self::EncryptedKey> {
-        let cipher = Aes256Gcm::new_from_slice(parent)?;
-        let nonce = Aes256Gcm::generate_nonce(OsRng);
+        let cipher = XSalsa20Poly1305::new(parent.into());
+        let nonce = XSalsa20Poly1305::generate_nonce(OsRng);
         let ciphertext = cipher.encrypt(&nonce, data.as_slice())?;
 
-        let mut result = [0u8; 60];
-        result[..12].copy_from_slice(&nonce);
-        result[12..].copy_from_slice(&ciphertext);
+        let mut result = [0u8; 72];
+        result[..24].copy_from_slice(&nonce);
+        result[24..].copy_from_slice(&ciphertext);
 
         Ok(result)
     }
@@ -45,7 +45,7 @@ mod tests {
 
     #[test]
     fn test_generate_key() {
-        let provider = Aes256GcmProvider {};
+        let provider = XSalsa20Poly1305Provider {};
         let key1 = provider.generate_key().expect("Failed to generate key");
         let key2 = provider.generate_key().expect("Failed to generate key");
 
@@ -59,15 +59,15 @@ mod tests {
 
     #[test]
     fn test_encrypt_decrypt_round_trip() {
-        let provider = Aes256GcmProvider {};
+        let provider = XSalsa20Poly1305Provider {};
         let parent_key = provider.generate_key().expect("Failed to generate parent key");
         let data_key = provider.generate_key().expect("Failed to generate data key");
 
         let encrypted = provider.encrypt(&parent_key, &data_key).expect("Failed to encrypt");
         let decrypted = provider.decrypt(&parent_key, &encrypted).expect("Failed to decrypt");
 
-        // Encrypted data should be 60 bytes (12 nonce + 48 ciphertext+tag)
-        assert_eq!(encrypted.len(), 60);
+        // Encrypted data should be 72 bytes (24 nonce + 48 ciphertext+tag)
+        assert_eq!(encrypted.len(), 72);
         
         // Decrypted data should match original
         assert_eq!(data_key, decrypted);
@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn test_encrypt_produces_different_outputs() {
-        let provider = Aes256GcmProvider {};
+        let provider = XSalsa20Poly1305Provider {};
         let parent_key = provider.generate_key().expect("Failed to generate parent key");
         let data_key = provider.generate_key().expect("Failed to generate data key");
 
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_decrypt_with_wrong_key_fails() {
-        let provider = Aes256GcmProvider {};
+        let provider = XSalsa20Poly1305Provider {};
         let parent_key1 = provider.generate_key().expect("Failed to generate parent key 1");
         let parent_key2 = provider.generate_key().expect("Failed to generate parent key 2");
         let data_key = provider.generate_key().expect("Failed to generate data key");

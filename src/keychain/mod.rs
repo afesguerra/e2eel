@@ -3,6 +3,9 @@ use crate::{Error, KeyGraph, KeyStorage, Result};
 #[cfg(feature = "aes256-gcm")]
 pub mod aes256;
 
+#[cfg(feature = "xsalsa20-poly1305")]
+pub mod xsalsa20_poly1305;
+
 /// Trait for encryption/decryption implementations
 pub trait CryptoProvider: Send + Sync {
     type Key: AsRef<[u8]> + Clone;
