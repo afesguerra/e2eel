@@ -19,7 +19,7 @@ impl KeyStorage for JsonStorage {
         Ok(serde_json::from_str(&json)?)
     }
 
-    fn save(&self, keys: &KeyGraph) -> Result<()> {
+    fn save(&mut self, keys: &KeyGraph) -> Result<()> {
         let json = serde_json::to_string_pretty(keys)?;
         write(&self.path, json)?;
         Ok(())
@@ -43,15 +43,15 @@ mod tests {
 
         create_dir_all("tmp").unwrap();
 
-        let key_chain = JsonStorage::new(JSON_PATH.to_string());
+        let mut storage = JsonStorage::new(JSON_PATH.to_string());
 
         let graph = sample_graph();
-        key_chain.save(&graph).expect("Error saving graph");
+        storage.save(&graph).expect("Error saving graph");
 
         let file_exists = exists(JSON_PATH).expect("Error checking file");
         assert_eq!(file_exists, true);
 
-        let result = key_chain.load().expect("Unable to load graph");
+        let result = storage.load().expect("Unable to load graph");
         assert_eq!(result, graph);
     }
 }

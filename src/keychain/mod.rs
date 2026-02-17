@@ -1,4 +1,4 @@
-use crate::{Error, KeyGraph, KeyStorage, Result};
+use crate::{Error, KeyGraph, Result};
 
 #[cfg(feature = "aes256-gcm")]
 pub mod aes256;
@@ -19,26 +19,16 @@ pub trait CryptoProvider: Send + Sync {
     fn generate_key(&self) -> Result<Self::Key>;
 }
 
-pub struct KeyChain<S, C>
-where
-    S: KeyStorage,
-    C: CryptoProvider,
-{
-    storage: S,
+pub struct KeyChain<C: CryptoProvider> {
     keys: KeyGraph,
     root_id: String,
     root: C::Key,
     crypto: C,
 }
 
-impl<S, C> KeyChain<S, C>
-where
-    S: KeyStorage,
-    C: CryptoProvider,
-{
-    pub fn new(storage: S, crypto: C, root_id: &str, root: &C::Key) -> Result<Self> {
+impl<C: CryptoProvider> KeyChain<C> {
+    pub fn new(crypto: C, root_id: &str, root: &C::Key) -> Result<Self> {
         Ok(Self {
-            storage,
             crypto,
             keys: KeyGraph::new(),
             root_id: root_id.into(),
@@ -87,13 +77,8 @@ where
         self.keys.add_root(key_id)
     }
 
-    pub fn fetch(&mut self) -> Result<()> {
-        self.keys = self.storage.load()?;
-        Ok(())
-    }
-
-    pub fn persist(&mut self) -> Result<()> {
-        self.storage.save(&self.keys)
+    pub fn get_graph(&self) -> &KeyGraph {
+        &self.keys
     }
 }
 
@@ -111,8 +96,7 @@ mod tests {
 
     #[test]
     fn test_create_graph() {
-        let mut keychain = KeyChain::<TestKeyStorage, TestCrypto>::new(
-            TestKeyStorage {},
+        let mut keychain = KeyChain::<TestCrypto>::new(
             TestCrypto {},
             KEK_LABEL,
             &KEK,

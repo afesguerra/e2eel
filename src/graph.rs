@@ -3,7 +3,7 @@ use crate::{Error, Result};
 use std::collections::{HashMap, HashSet, VecDeque};
 
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 struct KeyNode {
     wrappings: HashMap<String, Vec<u8>>,
 }
@@ -21,7 +21,7 @@ impl KeyNode {
 }
 
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct KeyGraph {
     version: String,
     roots: Vec<String>,

@@ -18,18 +18,6 @@ const RECOVERY_KEY: [u8; 60] = [
     143, 73, 156, 126, 42, 147, 25, 204, 53, 112, 107, 102, 91, 246, 131, 162, 139, 151,
 ];
 
-pub struct TestKeyStorage;
-
-impl KeyStorage for TestKeyStorage {
-    fn load(&self) -> Result<KeyGraph> {
-        Ok(sample_graph())
-    }
-
-    fn save(&self, _keys: &KeyGraph) -> Result<()> {
-        todo!()
-    }
-}
-
 pub fn array_from_mul(mul: &u8) -> [u8; 32] {
     from_fn(|i| (i as u8) * mul)
 }
