@@ -65,7 +65,7 @@ impl<C: CryptoProvider> KeyChain<C> {
     }
 
     pub fn add_wrapping(&mut self, parent_id: &str, key_id: &str) -> Result<()> {
-        let key = self.crypto.generate_key()?;
+        let key = self.get_key(key_id).or(self.crypto.generate_key())?;
         let parent = self.get_key(parent_id)?;
 
         let encrypted_key = self.crypto.encrypt(&parent, &key)?;
