@@ -1,6 +1,6 @@
 # e2eel
 
-![Pipeline Badge](https://gitlab.com/afesguerra/e2eel/badges/main/pipeline.svg?ignore_skipped=true)
+[![Build](https://github.com/afesguerra/e2eel/actions/workflows/rust.yml/badge.svg)](https://github.com/afesguerra/e2eel/actions/workflows/rust.yml)
 
 > A Rust library for end-to-end encryption key management.
 

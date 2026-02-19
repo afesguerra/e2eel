@@ -20,6 +20,17 @@ This is a prerequisite for proper multi-user sharing flows:
 
 XChaCha20-Poly1305 offers a larger nonce space (192-bit) compared to the standard ChaCha20-Poly1305 (96-bit), making random nonce generation safer for high-volume use cases. It is well-supported in the Rust ecosystem via the `chacha20poly1305` crate and complements the existing AES-256-GCM and XSalsa20-Poly1305 providers.
 
+### Zeroize Integration for Secret Memory Safety
+
+> Ensure key material is reliably erased from memory after use.
+
+`zeroize` is already listed as a dependency but is not yet actively applied to key types or intermediate values within the library. Without explicit zeroing, sensitive key bytes may linger in memory after they are no longer needed, making them potentially recoverable through memory dumps or similar attacks.
+
+This work would involve:
+- Implementing `Zeroize` and `ZeroizeOnDrop` on key types returned by `CryptoProvider`.
+- Ensuring intermediate decrypted keys produced during graph traversal are zeroed once the final key is reached.
+- Auditing all code paths where key material is held to eliminate unintentional copies that escape zeroing.
+
 ### Recovery Key Generation Helpers
 
 > Provide convenience APIs for generating and registering recovery keys.
