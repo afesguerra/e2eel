@@ -1,6 +1,7 @@
 use super::*;
 use std::array::from_fn;
 use std::sync::atomic::{AtomicU8, Ordering};
+use crate::graph::{InMemoryKeyGraph, KeyGraph};
 
 pub const KEK_LABEL: &str = "kek";
 pub const MASTER_LABEL: &str = "master";
@@ -51,8 +52,8 @@ impl CryptoProvider for TestCrypto {
     }
 }
 
-pub fn sample_graph() -> KeyGraph {
-    let mut graph = KeyGraph::new();
+pub fn sample_graph() -> InMemoryKeyGraph {
+    let mut graph = InMemoryKeyGraph::new();
 
     graph.add_root(KEK_LABEL).unwrap();
     graph

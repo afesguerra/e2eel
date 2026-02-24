@@ -1,7 +1,8 @@
 use std::fs::{read_to_string, write};
 
-use super::{KeyGraph, KeyStorage};
+use super::KeyStorage;
 use crate::core::Result;
+use crate::graph::InMemoryKeyGraph;
 
 pub struct JsonStorage {
     path: String,
@@ -14,12 +15,12 @@ impl JsonStorage {
 }
 
 impl KeyStorage for JsonStorage {
-    fn load(&self) -> Result<KeyGraph> {
+    fn load(&self) -> Result<InMemoryKeyGraph> {
         let json = read_to_string(&self.path)?;
         Ok(serde_json::from_str(&json)?)
     }
 
-    fn save(&mut self, keys: &KeyGraph) -> Result<()> {
+    fn save(&mut self, keys: &InMemoryKeyGraph) -> Result<()> {
         let json = serde_json::to_string_pretty(keys)?;
         write(&self.path, json)?;
         Ok(())

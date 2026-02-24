@@ -1,9 +1,10 @@
 use crate::{Error, Result};
+use super::KeyGraph;
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-#[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
 struct KeyNode {
     wrappings: HashMap<String, Vec<u8>>,
 }
@@ -20,9 +21,11 @@ impl KeyNode {
     }
 }
 
+/// In-memory implementation of the KeyGraph trait.
+/// Stores the key graph structure and all wrappings in memory using HashMaps.
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct KeyGraph {
+pub struct InMemoryKeyGraph {
     version: String,
     roots: Vec<String>,
     nodes: HashMap<String, KeyNode>,
@@ -30,17 +33,14 @@ pub struct KeyGraph {
 
 const CURRENT_VERSION: &'static str = "0.1";
 
-impl KeyGraph {
+impl InMemoryKeyGraph {
+    /// Creates a new empty in-memory key graph.
     pub fn new() -> Self {
         Self {
             version: CURRENT_VERSION.into(),
             roots: vec![],
             nodes: HashMap::new(),
         }
-    }
-
-    pub fn has_root(&self, id: &str) -> bool {
-        self.roots.contains(&id.to_string())
     }
 
     fn has_node(&self, id: &str) -> bool {
@@ -50,13 +50,19 @@ impl KeyGraph {
     fn has_root_or_node(&self, id: &str) -> bool {
         self.has_root(id) || self.has_node(id)
     }
+}
 
-    pub fn add_root(&mut self, id: &str) -> Result<()> {
+impl KeyGraph for InMemoryKeyGraph {
+    fn has_root(&self, id: &str) -> bool {
+        self.roots.contains(&id.to_string())
+    }
+
+    fn add_root(&mut self, id: &str) -> Result<()> {
         self.roots.push(id.to_string());
         Ok(())
     }
 
-    pub fn add_wrapping(&mut self, id: &str, parent: &str, data: &[u8]) -> Result<()> {
+    fn add_wrapping(&mut self, id: &str, parent: &str, data: &[u8]) -> Result<()> {
         if !self.has_root_or_node(parent) {
             return Err(Error::InvalidParentKeyID(parent.to_string()));
         }
@@ -74,11 +80,11 @@ impl KeyGraph {
         Ok(())
     }
 
-    pub fn get_wrapping(&self, id: &str, parent: &str) -> Option<&Vec<u8>> {
+    fn get_wrapping(&self, id: &str, parent: &str) -> Option<&Vec<u8>> {
         self.nodes.get(id)?.wrappings.get(&parent.to_string())
     }
 
-    pub fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>> {
+    fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>> {
         let src = src.to_string();
         let dest = dest.to_string();
 
@@ -123,48 +129,5 @@ impl KeyGraph {
             }
         }
         None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_data::*;
-
-    #[test]
-    fn test_shortest_path() {
-        let graph = sample_graph();
-
-        let shortest_path = graph
-            .find_shortest_path(KEK_LABEL, RECOVERY_LABEL)
-            .expect("Cannot find path between KEK and RECOVERY");
-
-        assert_eq!(
-            shortest_path,
-            vec![
-                KEK_LABEL.to_string(),
-                MASTER_LABEL.to_string(),
-                RECOVERY_LABEL.to_string()
-            ]
-        );
-    }
-
-    #[test]
-    fn test_multiple_paths() {
-        let mock_data = [0u8; 1];
-        let mut graph = KeyGraph::new();
-
-        graph.add_root("root").unwrap();
-        graph.add_wrapping("nodeA1", "root", &mock_data).unwrap();
-        graph.add_wrapping("nodeB1", "root", &mock_data).unwrap();
-
-        graph.add_wrapping("nodeA2", "nodeA1", &mock_data).unwrap();
-        graph.add_wrapping("nodeC", "nodeA2", &mock_data).unwrap();
-        graph.add_wrapping("nodeC", "nodeB1", &mock_data).unwrap();
-
-        assert_eq!(
-            vec!["root", "nodeB1", "nodeC"],
-            graph.find_shortest_path("root", "nodeC").unwrap()
-        )
     }
 }

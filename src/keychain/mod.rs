@@ -1,4 +1,4 @@
-use crate::{Error, KeyGraph, Result};
+use crate::{Error, Result, graph::KeyGraph};
 
 #[cfg(feature = "aes256-gcm")]
 pub mod aes256;
@@ -19,18 +19,26 @@ pub trait CryptoProvider: Send + Sync {
     fn generate_key(&self) -> Result<Self::Key>;
 }
 
-pub struct KeyChain<C: CryptoProvider> {
-    keys: KeyGraph,
+pub struct KeyChain<G, C>
+where
+    G: KeyGraph,
+    C: CryptoProvider,
+{
+    keys: G,
     root_id: String,
     root: C::Key,
     crypto: C,
 }
 
-impl<C: CryptoProvider> KeyChain<C> {
-    pub fn new(crypto: C, root_id: &str, root: &C::Key) -> Result<Self> {
+impl<G, C> KeyChain<G, C>
+where
+    G: KeyGraph,
+    C: CryptoProvider,
+{
+    pub fn new(crypto: C, root_id: &str, root: &C::Key, keys: G) -> Result<Self> {
         Ok(Self {
             crypto,
-            keys: KeyGraph::new(),
+            keys,
             root_id: root_id.into(),
             root: root.clone(),
         })
@@ -77,7 +85,7 @@ impl<C: CryptoProvider> KeyChain<C> {
         self.keys.add_root(key_id)
     }
 
-    pub fn get_graph(&self) -> &KeyGraph {
+    pub fn get_graph(&self) -> &dyn KeyGraph {
         &self.keys
     }
 }
@@ -86,6 +94,7 @@ impl<C: CryptoProvider> KeyChain<C> {
 mod tests {
     use super::*;
     use crate::test_data::*;
+    use crate::graph::InMemoryKeyGraph;
     use std::array::from_fn;
 
     const KEK: [u8; 32] = [0u8; 32];
@@ -96,10 +105,11 @@ mod tests {
 
     #[test]
     fn test_create_graph() {
-        let mut keychain = KeyChain::<TestCrypto>::new(
+        let mut keychain = KeyChain::new(
             TestCrypto {},
             KEK_LABEL,
             &KEK,
+            InMemoryKeyGraph::new(),
         )
         .expect("KeyChain creation failed");
 
