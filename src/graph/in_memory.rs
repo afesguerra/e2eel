@@ -50,6 +50,21 @@ impl InMemoryKeyGraph {
     fn has_root_or_node(&self, id: &str) -> bool {
         self.has_root(id) || self.has_node(id)
     }
+
+    /// Loads a key graph from a JSON file.
+    #[cfg(feature = "json")]
+    pub fn load_from_json(path: &str) -> Result<Self> {
+        let json = std::fs::read_to_string(path)?;
+        Ok(serde_json::from_str(&json)?)
+    }
+
+    /// Saves the key graph to a JSON file.
+    #[cfg(feature = "json")]
+    pub fn save_to_json(&self, path: &str) -> Result<()> {
+        let json = serde_json::to_string_pretty(self)?;
+        std::fs::write(path, json)?;
+        Ok(())
+    }
 }
 
 impl KeyGraph for InMemoryKeyGraph {
@@ -129,5 +144,39 @@ impl KeyGraph for InMemoryKeyGraph {
             }
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_data::sample_graph;
+
+    #[test]
+    #[cfg(feature = "json")]
+    fn test_json_serialization() {
+        use std::fs::{create_dir_all, metadata, remove_file};
+
+        const JSON_PATH: &str = "tmp/serde.json";
+
+        // Clean up any existing file
+        let _ = remove_file(JSON_PATH);
+        create_dir_all("tmp").expect("Unable to create tmp dir");
+
+        let graph = sample_graph();
+    
+        // Test save
+        graph.save_to_json(JSON_PATH).expect("Error saving graph");
+    
+        // Verify file exists
+        assert!(metadata(JSON_PATH).is_ok());
+    
+        // Test load
+        let loaded = InMemoryKeyGraph::load_from_json(JSON_PATH)
+            .expect("Unable to load graph");
+        assert_eq!(loaded, graph);
+    
+        // Clean up
+        let _ = remove_file(JSON_PATH).expect("Unable to clean up after test");
     }
 }
