@@ -14,6 +14,14 @@ This is a prerequisite for proper multi-user sharing flows:
 - User A wraps a file key with User B's public key.
 - User B can decrypt the wrapping using their own private key, without User A ever knowing User B's private key.
 
+### Relational Database-Backed KeyGraph
+
+> Add a KeyGraph implementation backed by a relational database (PostgreSQL, MySQL, etc.).
+
+Currently, `KeyGraph` is implemented using an in-memory store. Supporting a relational database backend would enable persistent storage of key hierarchies, making e2eel suitable for server-side applications and multi-instance deployments. This implementation would:
+- Store nodes and wrappings in a normalized schema.
+- Support efficient queries for traversing the key graph.
+
 ### XChaCha20-Poly1305 Support
 
 > Add XChaCha20-Poly1305 as an additional symmetric encryption algorithm.
@@ -47,5 +55,13 @@ This feature would provide:
 
 The following are explicitly **not** planned for the near term but may be revisited:
 
-- **PBKDF integration** (Argon2id, PBKDF2, scrypt): key derivation from passwords remains the responsibility of the consuming application.
-- **Content encryption**: e2eel will continue to focus exclusively on key management, not on encrypting application data.
+### Password-Based Key Derivation (PBKDF)
+
+e2eel does **not** handle key derivation from passwords or other low-entropy secrets (e.g., Argon2id, PBKDF2, scrypt). The library expects to receive a fully derived encryption key as the entry point for graph traversal. Integrating a PBKDF to produce that initial key is the responsibility of the consuming application. This may change in the future.
+
+### Encrypting Application Data
+
+e2eel only handles the encryption and decryption of **keys**. It does not provide primitives for encrypting your application's actual content or files. The intended usage is:
+
+1. Use e2eel to retrieve a decrypted content encryption key.
+2. Use your own implementation (or a general-purpose crypto library) to encrypt/decrypt the actual data with that key.

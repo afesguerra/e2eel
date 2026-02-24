@@ -44,95 +44,9 @@ kek (root, derived from password)
 - **Key size**: 256 bits (32 bytes)
 - **Performance**: Fast software implementation, well-suited for embedded/mobile
 
-## Out of Scope
-
-### Password-Based Key Derivation (PBKDF)
-
-e2eel does **not** handle key derivation from passwords or other low-entropy secrets (e.g., Argon2id, PBKDF2, scrypt). The library expects to receive a fully derived encryption key as the entry point for graph traversal. Integrating a PBKDF to produce that initial key is the responsibility of the consuming application. This may change in the future.
-
-### Encrypting Application Data
-
-e2eel only handles the encryption and decryption of **keys**. It does not provide primitives for encrypting your application's actual content or files. The intended usage is:
-
-1. Use e2eel to retrieve a decrypted content encryption key.
-2. Use your own implementation (or a general-purpose crypto library) to encrypt/decrypt the actual data with that key.
-
 ## Examples
 
-### Set up a new key graph with AES-256-GCM
-
-```rust
-use e2eel::{KeyChain, keychain::aes256::Aes256GcmProvider, json::JsonStorage, KeyStorage};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let crypto = Aes256GcmProvider;
-    let kek_key = [0u8; 32]; // Derive this from a password using Argon2id or similar
-
-    let mut keychain = KeyChain::new(crypto, "kek", &kek_key)?;
-
-    keychain.add_root("kek")?;
-    keychain.add_wrapping("kek", "master")?;
-    keychain.add_wrapping("master", "recovery")?;
-
-    let mut storage = JsonStorage::new("keychain.json".to_string());
-    storage.save(keychain.get_graph())?;
-    Ok(())
-}
-```
-
-### Set up a new key graph with XSalsa20-Poly1305
-
-```rust
-use e2eel::{KeyChain, keychain::xsalsa20_poly1305::XSalsa20Poly1305Provider, json::JsonStorage, KeyStorage};
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let crypto = XSalsa20Poly1305Provider;
-    let kek_key = [0u8; 32]; // Derive this from a password using Argon2id or similar
-
-    let mut keychain = KeyChain::new(crypto, "kek", &kek_key)?;
-
-    keychain.add_root("kek")?;
-    keychain.add_wrapping("kek", "master")?;
-    keychain.add_wrapping("master", "recovery")?;
-
-    let mut storage = JsonStorage::new("keychain.json".to_string());
-    storage.save(keychain.get_graph())?;
-    Ok(())
-}
-```
-
-### Retrieve a key by traversing the graph
-
-```rust
-use e2eel::{KeyChain, keychain::aes256::Aes256GcmProvider};
-
-fn use_key(keychain: &KeyChain<Aes256GcmProvider>) -> Result<(), Box<dyn std::error::Error>> {
-    // Starting from "kek", e2eel finds the shortest path to "recovery",
-    // transitively decrypting each wrapping key along the way.
-    let subkey = keychain.get_key("recovery")?;
-    Ok(())
-}
-```
-
-### Share access to a key with another user
-
-```rust
-use e2eel::{KeyChain, keychain::aes256::Aes256GcmProvider, json::JsonStorage, KeyStorage};
-
-fn share_file_key(
-    keychain: &mut KeyChain<Aes256GcmProvider>,
-    other_user_key_id: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // "file_key" is already accessible via the owner's own key hierarchy.
-    // Adding a second wrapping from another user's key creates an additional
-    // path, granting that user access to "file_key" through their own root.
-    keychain.add_wrapping(other_user_key_id, "file_key")?;
-
-    let mut storage = JsonStorage::new("keychain.json".to_string());
-    storage.save(keychain.get_graph())?;
-    Ok(())
-}
-```
+See [EXAMPLES.md](./EXAMPLES.md) for comprehensive usage examples.
 
 ## Cargo Features
 
@@ -165,3 +79,31 @@ e2eel = { version = "0.1", features = ["aes256-gcm", "xsalsa20-poly1305"] }
 This is a personal project for learning Rust while contributing to the open-source community. The goal is to grow it into a production-ready library over time. Feedback and contributions are welcome.
 
 See [ROADMAP.md](./ROADMAP.md) for planned features.
+
+### Learning in Progress
+
+I am **not a security expert**. This project is a learning vehicle for me to understand cryptography, Rust, and secure coding practices more deeply. I am learning about key management, encryption algorithms, and their proper use as I build this library. While I take security seriously and review all code carefully, some design decisions or implementation details may be imperfect or suboptimal as my knowledge evolves.
+
+If you are a security researcher or cryptography expert, feedback and critique are especially welcome. This project benefits from the collective knowledge of the community.
+
+### Iteration Without Community Review
+
+Currently, this is a solo project without an active community or PR review process. This means I iterate directly on the codebase, refactoring and improving as I learn and discover better approaches. There is no formal code review gate, which allows for rapid experimentation but also means the responsibility for correctness rests entirely with me.
+
+As the project matures and gains community contributors, I plan to introduce a formal review process. Until then, I iterate continuously, fixing issues and improving the design based on my own testing and learning.
+
+## On AI-Assisted Development
+
+I have been a sort of "AI luddite" for a while but in order to not fight back against new tools just because they are unfamiliar, I am using AI assistance as a development tool and learning resource. However, **I review and understand every single change** before it is committed (both as I would with any PR but also for learning Rust). I am opposed to "vibe-coding" — the practice of accepting AI-generated code without meaningful review or understanding.
+
+My approach:
+- ✅ Use AI to explore ideas, generate boilerplate, and accelerate development
+- ✅ Review all AI suggestions critically before acceptance
+- ✅ Understand the implications of every change, especially for security-sensitive code
+- ✅ Treat AI assistance as a learning opportunity to deepen my understanding of Rust and cryptography
+- ❌ Never blindly accept generated code
+- ❌ Never skip security considerations or defer to AI judgment on correctness
+
+Given that this library deals with encryption key management, security is non-negotiable. All code must be thoroughly reviewed and understood, regardless of its source.
+
+(and yes, this documentation was generated with AI and I did read it all and tweaked it)
