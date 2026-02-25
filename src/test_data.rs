@@ -10,22 +10,25 @@ fn array_from_mul(mul: &u8) -> [u8; 32] {
     from_fn(|i| (i as u8) * mul)
 }
 
-pub struct TestCrypto;
+pub struct TestCrypto(AtomicU8);
 
-static COUNTER: AtomicU8 = AtomicU8::new(1);
+impl TestCrypto {
+    pub fn new() -> Self {
+        Self(AtomicU8::new(1))
+    }
+}
 
 impl CryptoProvider for TestCrypto {
     type Key = [u8; 32];
     type EncryptedKey = Self::Key;
 
     fn generate_key(&self) -> Result<Self::Key> {
-        let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let data = array_from_mul(&n);
-        Ok(data)
+        let n = self.0.fetch_add(1, Ordering::Relaxed);
+        Ok(array_from_mul(&n))
     }
 
     fn encrypt(&self, _key: &Self::Key, plaintext: &Self::Key) -> Result<Self::EncryptedKey> {
-        let mut data = plaintext.clone();
+        let mut data = *plaintext;
         data.reverse();
         Ok(data)
     }

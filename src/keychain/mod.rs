@@ -106,7 +106,7 @@ mod tests {
     #[test]
     fn test_create_graph() {
         let mut keychain = KeyChain::new(
-            TestCrypto {},
+            TestCrypto::new(),
             KEK_LABEL,
             &KEK,
             InMemoryKeyGraph::new(),
