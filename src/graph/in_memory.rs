@@ -211,6 +211,106 @@ mod tests {
     }
 
     #[test]
+    fn test_path_nonexistent_src() {
+        let graph = sample_graph();
+        assert!(graph.find_shortest_path("ghost", RECOVERY_LABEL).is_none());
+    }
+
+    #[test]
+    fn test_path_nonexistent_dest() {
+        let graph = sample_graph();
+        assert!(graph.find_shortest_path(KEK_LABEL, "ghost").is_none());
+    }
+
+    #[test]
+    fn test_path_both_nonexistent() {
+        let graph = sample_graph();
+        assert!(graph.find_shortest_path("ghost_src", "ghost_dest").is_none());
+    }
+
+    #[test]
+    fn test_path_same_root() {
+        let graph = sample_graph();
+        assert_eq!(
+            graph.find_shortest_path(KEK_LABEL, KEK_LABEL),
+            Some(vec![KEK_LABEL.to_string()])
+        );
+    }
+
+    #[test]
+    fn test_path_same_node() {
+        let graph = sample_graph();
+        assert_eq!(
+            graph.find_shortest_path(RECOVERY_LABEL, RECOVERY_LABEL),
+            Some(vec![RECOVERY_LABEL.to_string()])
+        );
+    }
+
+    #[test]
+    fn test_path_direct_adjacent() {
+        let graph = sample_graph();
+        assert_eq!(
+            graph.find_shortest_path(KEK_LABEL, MASTER_LABEL),
+            Some(vec![KEK_LABEL.to_string(), MASTER_LABEL.to_string()])
+        );
+    }
+
+    #[test]
+    fn test_path_same_nonexistent_node() {
+        // src == dest but neither exists — existence check must fire before the same-node shortcut
+        let graph = sample_graph();
+        assert!(graph.find_shortest_path("ghost", "ghost").is_none());
+    }
+
+    #[test]
+    fn test_path_no_connection() {
+        // Two completely disconnected subtrees: rootA -> nodeA, rootB -> nodeB
+        let mock_data = [0u8; 1];
+        let mut graph = InMemoryKeyGraph::new();
+
+        graph.add_root("rootA").unwrap();
+        graph.add_wrapping("nodeA", "rootA", &mock_data).unwrap();
+
+        graph.add_root("rootB").unwrap();
+        graph.add_wrapping("nodeB", "rootB", &mock_data).unwrap();
+
+        assert!(graph.find_shortest_path("rootA", "nodeB").is_none());
+    }
+
+    // --- add_wrapping edge cases ---
+
+    #[test]
+    fn test_add_wrapping_unknown_parent() {
+        let mut graph = InMemoryKeyGraph::new();
+        let result = graph.add_wrapping("child", "nonexistent_parent", &[0u8; 1]);
+        assert!(matches!(result, Err(Error::InvalidParentKeyID(_))));
+    }
+
+    // --- get_wrapping edge cases ---
+
+    #[test]
+    fn test_get_wrapping_returns_data() {
+        let mut graph = InMemoryKeyGraph::new();
+        let data = vec![1u8, 2, 3, 4];
+        graph.add_root("root").unwrap();
+        graph.add_wrapping("child", "root", &data).unwrap();
+        assert_eq!(graph.get_wrapping("child", "root"), Some(&data));
+    }
+
+    #[test]
+    fn test_get_wrapping_unknown_node() {
+        let graph = sample_graph();
+        assert!(graph.get_wrapping("ghost", KEK_LABEL).is_none());
+    }
+
+    #[test]
+    fn test_get_wrapping_unknown_parent() {
+        let graph = sample_graph();
+        // MASTER_LABEL is a valid node but "ghost_parent" is not its parent
+        assert!(graph.get_wrapping(MASTER_LABEL, "ghost_parent").is_none());
+    }
+
+    #[test]
     #[cfg(feature = "json")]
     fn test_json_serialization() {
         use std::fs::{create_dir_all, metadata, remove_file};
