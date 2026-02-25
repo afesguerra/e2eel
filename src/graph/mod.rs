@@ -1,8 +1,6 @@
 use crate::Result;
 
-mod in_memory;
-
-pub use in_memory::InMemoryKeyGraph;
+pub mod in_memory;
 
 /// Trait defining the interface for a key graph structure.
 /// A key graph manages key wrappings and parent-child relationships between keys.
@@ -21,47 +19,4 @@ pub trait KeyGraph {
 
     /// Finds the shortest path between two key IDs in the graph.
     fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>>;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_data::*;
-
-    #[test]
-    fn test_shortest_path() {
-        let graph = sample_graph();
-
-        let shortest_path = graph
-            .find_shortest_path(KEK_LABEL, RECOVERY_LABEL)
-            .expect("Cannot find path between KEK and RECOVERY");
-
-        assert_eq!(
-            shortest_path,
-            vec![
-                KEK_LABEL.to_string(),
-                MASTER_LABEL.to_string(),
-                RECOVERY_LABEL.to_string()
-            ]
-        );
-    }
-
-    #[test]
-    fn test_multiple_paths() {
-        let mock_data = [0u8; 1];
-        let mut graph = InMemoryKeyGraph::new();
-
-        graph.add_root("root").unwrap();
-        graph.add_wrapping("nodeA1", "root", &mock_data).unwrap();
-        graph.add_wrapping("nodeB1", "root", &mock_data).unwrap();
-
-        graph.add_wrapping("nodeA2", "nodeA1", &mock_data).unwrap();
-        graph.add_wrapping("nodeC", "nodeA2", &mock_data).unwrap();
-        graph.add_wrapping("nodeC", "nodeB1", &mock_data).unwrap();
-
-        assert_eq!(
-            vec!["root", "nodeB1", "nodeC"],
-            graph.find_shortest_path("root", "nodeC").unwrap()
-        )
-    }
 }

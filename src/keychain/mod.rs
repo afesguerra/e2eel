@@ -94,7 +94,7 @@ where
 mod tests {
     use super::*;
     use crate::test_data::*;
-    use crate::graph::InMemoryKeyGraph;
+    use crate::in_memory::InMemoryKeyGraph;
     use std::array::from_fn;
 
     const KEK: [u8; 32] = [0u8; 32];

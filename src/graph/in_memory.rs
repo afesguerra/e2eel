@@ -31,7 +31,7 @@ pub struct InMemoryKeyGraph {
     nodes: HashMap<String, KeyNode>,
 }
 
-const CURRENT_VERSION: &'static str = "0.1";
+const CURRENT_VERSION: &str = "0.1";
 
 impl InMemoryKeyGraph {
     /// Creates a new empty in-memory key graph.
@@ -103,13 +103,14 @@ impl KeyGraph for InMemoryKeyGraph {
         let src = src.to_string();
         let dest = dest.to_string();
 
+        if !self.has_root_or_node(&src) || !self.has_root_or_node(&dest) {
+            return None;
+        }
+
         if src == dest {
             return Some(vec![src]);
         }
 
-        if !self.has_root_or_node(&src) || !self.has_root_or_node(&dest) {
-            return None;
-        }
         // Lazy reverse BFS: dest -> ... -> src (no full adj build)
         let mut queue = VecDeque::new();
         queue.push_back(dest.clone());
@@ -150,7 +151,64 @@ impl KeyGraph for InMemoryKeyGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_data::sample_graph;
+    use crate::test_data::{KEK_LABEL, MASTER_LABEL, RECOVERY_LABEL};
+
+    const MASTER_KEY: [u8; 60] = [
+        69, 4, 131, 16, 243, 114, 55, 50, 143, 173, 62, 57, 1, 229, 144, 128, 129, 175, 17, 231, 1,
+        255, 154, 150, 142, 17, 185, 157, 246, 54, 238, 232, 106, 208, 172, 93, 101, 129, 118, 89, 214,
+        52, 65, 46, 125, 27, 124, 78, 87, 213, 49, 77, 21, 212, 98, 123, 164, 102, 21, 185,
+    ];
+
+    const RECOVERY_KEY: [u8; 60] = [
+        113, 94, 4, 21, 212, 215, 60, 86, 124, 33, 224, 244, 41, 8, 63, 99, 159, 79, 62, 168, 103, 43,
+        90, 189, 165, 44, 225, 170, 159, 175, 229, 65, 95, 177, 249, 29, 137, 123, 38, 224, 189, 84,
+        143, 73, 156, 126, 42, 147, 25, 204, 53, 112, 107, 102, 91, 246, 131, 162, 139, 151,
+    ];
+
+    fn sample_graph() -> InMemoryKeyGraph {
+        let mut graph = InMemoryKeyGraph::new();
+        graph.add_root(KEK_LABEL).unwrap();
+        graph.add_wrapping(MASTER_LABEL, KEK_LABEL, &MASTER_KEY).unwrap();
+        graph.add_wrapping(RECOVERY_LABEL, MASTER_LABEL, &RECOVERY_KEY).unwrap();
+        graph
+    }
+
+    #[test]
+    fn test_shortest_path() {
+        let graph = sample_graph();
+
+        let shortest_path = graph
+            .find_shortest_path(KEK_LABEL, RECOVERY_LABEL)
+            .expect("Cannot find path between KEK and RECOVERY");
+
+        assert_eq!(
+            shortest_path,
+            vec![
+                KEK_LABEL.to_string(),
+                MASTER_LABEL.to_string(),
+                RECOVERY_LABEL.to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_multiple_paths() {
+        let mock_data = [0u8; 1];
+        let mut graph = InMemoryKeyGraph::new();
+
+        graph.add_root("root").unwrap();
+        graph.add_wrapping("nodeA1", "root", &mock_data).unwrap();
+        graph.add_wrapping("nodeB1", "root", &mock_data).unwrap();
+
+        graph.add_wrapping("nodeA2", "nodeA1", &mock_data).unwrap();
+        graph.add_wrapping("nodeC", "nodeA2", &mock_data).unwrap();
+        graph.add_wrapping("nodeC", "nodeB1", &mock_data).unwrap();
+
+        assert_eq!(
+            vec!["root", "nodeB1", "nodeC"],
+            graph.find_shortest_path("root", "nodeC").unwrap()
+        )
+    }
 
     #[test]
     #[cfg(feature = "json")]
@@ -164,19 +222,19 @@ mod tests {
         create_dir_all("tmp").expect("Unable to create tmp dir");
 
         let graph = sample_graph();
-    
+
         // Test save
         graph.save_to_json(JSON_PATH).expect("Error saving graph");
-    
+
         // Verify file exists
         assert!(metadata(JSON_PATH).is_ok());
-    
+
         // Test load
         let loaded = InMemoryKeyGraph::load_from_json(JSON_PATH)
             .expect("Unable to load graph");
         assert_eq!(loaded, graph);
-    
+
         // Clean up
-        let _ = remove_file(JSON_PATH).expect("Unable to clean up after test");
+        let _ = remove_file(JSON_PATH);
     }
 }
