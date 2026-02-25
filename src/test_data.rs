@@ -18,25 +18,20 @@ impl TestCrypto {
     }
 }
 
-impl CryptoProvider for TestCrypto {
-    type Key = [u8; 32];
-    type EncryptedKey = Self::Key;
-
-    fn generate_key(&self) -> Result<Self::Key> {
+impl CryptoProvider<32, 32> for TestCrypto {
+    fn generate_key(&self) -> Result<[u8; 32]> {
         let n = self.0.fetch_add(1, Ordering::Relaxed);
         Ok(array_from_mul(&n))
     }
 
-    fn encrypt(&self, _key: &Self::Key, plaintext: &Self::Key) -> Result<Self::EncryptedKey> {
+    fn encrypt(&self, _key: &[u8; 32], plaintext: &[u8; 32]) -> Result<[u8; 32]> {
         let mut data = *plaintext;
         data.reverse();
         Ok(data)
     }
 
-    fn decrypt(&self, _key: &Self::Key, ciphertext: &[u8]) -> Result<Self::Key> {
-        let mut data: Self::Key = ciphertext
-            .try_into()
-            .expect("Cannot convert cipherText into Key");
+    fn decrypt(&self, _key: &[u8; 32], ciphertext: &[u8; 32]) -> Result<[u8; 32]> {
+        let mut data: [u8; 32] = *ciphertext;
         data.reverse();
         Ok(data)
     }

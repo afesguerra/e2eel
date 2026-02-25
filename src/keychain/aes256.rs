@@ -7,26 +7,23 @@ use crate::{CryptoProvider, Error, Result};
 
 pub struct Aes256GcmProvider;
 
-impl CryptoProvider for Aes256GcmProvider {
-    type Key = [u8; 32];
-    type EncryptedKey = [u8; 60];
-
-    fn generate_key(&self) -> Result<Self::Key> {
+impl CryptoProvider<32, 60> for Aes256GcmProvider {
+    fn generate_key(&self) -> Result<[u8; 32]> {
         let key = Aes256Gcm::generate_key(OsRng);
         Ok(key.into())
     }
 
-    fn decrypt(&self, key: &Self::Key, data: &[u8]) -> Result<Self::Key> {
+    fn decrypt(&self, key: &[u8; 32], data: &[u8; 60]) -> Result<[u8; 32]> {
         let (nonce, ciphertext) = data.split_at(12);
+        // nonce: &[u8; 12], ciphertext: &[u8; 48] (32 bytes data + 16 bytes tag)
 
-        let result: Self::Key = Aes256Gcm::new(key.into())
+        Aes256Gcm::new(key.into())
             .decrypt(nonce.into(), ciphertext)?
             .try_into()
-            .map_err(|_| Error::Generic("Decrypted data has incorrect length".to_string()))?;
-        Ok(result)
+            .map_err(|_| Error::Generic("Decrypted data has incorrect length".to_string()))
     }
 
-    fn encrypt(&self, parent: &Self::Key, data: &Self::Key) -> Result<Self::EncryptedKey> {
+    fn encrypt(&self, parent: &[u8; 32], data: &[u8; 32]) -> Result<[u8; 60]> {
         let cipher = Aes256Gcm::new_from_slice(parent)?;
         let nonce = Aes256Gcm::generate_nonce(OsRng);
         let ciphertext = cipher.encrypt(&nonce, data.as_slice())?;

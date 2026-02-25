@@ -7,26 +7,24 @@ use crate::{CryptoProvider, Error, Result};
 
 pub struct XSalsa20Poly1305Provider;
 
-impl CryptoProvider for XSalsa20Poly1305Provider {
-    type Key = [u8; 32];
-    type EncryptedKey = [u8; 72]; // 24 bytes nonce + 32 bytes ciphertext + 16 bytes tag
+impl CryptoProvider<32, 72> for XSalsa20Poly1305Provider {
 
-    fn generate_key(&self) -> Result<Self::Key> {
+    fn generate_key(&self) -> Result<[u8; 32]> {
         let key = XSalsa20Poly1305::generate_key(OsRng);
         Ok(key.into())
     }
 
-    fn decrypt(&self, key: &Self::Key, data: &[u8]) -> Result<Self::Key> {
+    fn decrypt(&self, key: &[u8; 32], data: &[u8; 72]) -> Result<[u8; 32]> {
+        // nonce: &[u8; 24], ciphertext: &[u8; 48] (32 bytes data + 16 bytes tag)
         let (nonce, ciphertext) = data.split_at(24);
 
-        let result: Self::Key = XSalsa20Poly1305::new(key.into())
+        XSalsa20Poly1305::new(key.into())
             .decrypt(nonce.into(), ciphertext)?
             .try_into()
-            .map_err(|_| Error::Generic("Decrypted data has incorrect length".to_string()))?;
-        Ok(result)
+            .map_err(|_| Error::Generic("Decrypted data has incorrect length".to_string()))
     }
 
-    fn encrypt(&self, parent: &Self::Key, data: &Self::Key) -> Result<Self::EncryptedKey> {
+    fn encrypt(&self, parent: &[u8; 32], data: &[u8; 32]) -> Result<[u8; 72]> {
         let cipher = XSalsa20Poly1305::new(parent.into());
         let nonce = XSalsa20Poly1305::generate_nonce(OsRng);
         let ciphertext = cipher.encrypt(&nonce, data.as_slice())?;
@@ -52,7 +50,7 @@ mod tests {
         // Keys should be 32 bytes
         assert_eq!(key1.len(), 32);
         assert_eq!(key2.len(), 32);
-        
+
         // Keys should be different (extremely unlikely to be the same)
         assert_ne!(key1, key2);
     }
@@ -68,7 +66,7 @@ mod tests {
 
         // Encrypted data should be 72 bytes (24 nonce + 48 ciphertext+tag)
         assert_eq!(encrypted.len(), 72);
-        
+
         // Decrypted data should match original
         assert_eq!(data_key, decrypted);
     }
@@ -84,7 +82,7 @@ mod tests {
 
         // Due to random nonce, encrypted outputs should be different
         assert_ne!(encrypted1, encrypted2);
-        
+
         // But both should decrypt to the same value
         let decrypted1 = provider.decrypt(&parent_key, &encrypted1).expect("Failed to decrypt");
         let decrypted2 = provider.decrypt(&parent_key, &encrypted2).expect("Failed to decrypt");

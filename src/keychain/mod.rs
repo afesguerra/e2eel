@@ -1,4 +1,4 @@
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroizing;
 use crate::{Error, Result, graph::KeyGraph};
 
 #[cfg(feature = "aes256-gcm")]
@@ -7,45 +7,44 @@ pub mod aes256;
 #[cfg(feature = "xsalsa20-poly1305")]
 pub mod xsalsa20_poly1305;
 
-/// Trait for encryption/decryption implementations
-pub trait CryptoProvider: Send + Sync {
-    type Key: AsRef<[u8]> + Clone + Zeroize;
-    type EncryptedKey: AsRef<[u8]> + Clone;
-
-    /// Encrypt data with a key
-    fn encrypt(&self, key: &Self::Key, plaintext: &Self::Key) -> Result<Self::EncryptedKey>;
-    /// Decrypt data with a key
-    fn decrypt(&self, key: &Self::Key, ciphertext: &[u8]) -> Result<Self::Key>;
-    /// Generate a new encryption key
-    fn generate_key(&self) -> Result<Self::Key>;
+/// Trait for encryption/decryption implementations.
+/// `N` is the size of the key in bytes, `M` is the size of an encrypted key in bytes.
+/// e.g. `impl CryptoProvider<32, 60> for MyProvider`.
+pub trait CryptoProvider<const N: usize, const M: usize>: Send + Sync {
+    /// Encrypt `plaintext` key material using `key`
+    fn encrypt(&self, key: &[u8; N], plaintext: &[u8; N]) -> Result<[u8; M]>;
+    /// Decrypt ciphertext back into key material using `key`
+    fn decrypt(&self, key: &[u8; N], ciphertext: &[u8; M]) -> Result<[u8; N]>;
+    /// Generate a new random key
+    fn generate_key(&self) -> Result<[u8; N]>;
 }
 
-pub struct KeyChain<G, C>
+pub struct KeyChain<G, C, const N: usize, const M: usize>
 where
     G: KeyGraph,
-    C: CryptoProvider,
+    C: CryptoProvider<N, M>,
 {
     keys: G,
     root_id: String,
-    root: Zeroizing<C::Key>,
+    root: Zeroizing<[u8; N]>,
     crypto: C,
 }
 
-impl<G, C> KeyChain<G, C>
+impl<G, C, const N: usize, const M: usize> KeyChain<G, C, N, M>
 where
     G: KeyGraph,
-    C: CryptoProvider,
+    C: CryptoProvider<N, M>,
 {
-    pub fn new(crypto: C, root_id: &str, root: &C::Key, keys: G) -> Result<Self> {
+    pub fn new(crypto: C, root_id: &str, root: &[u8; N], keys: G) -> Result<Self> {
         Ok(Self {
             crypto,
             keys,
             root_id: root_id.into(),
-            root: Zeroizing::new(root.clone()),
+            root: Zeroizing::new(*root),
         })
     }
 
-    pub fn get_key(&self, id: &str) -> Result<C::Key> {
+    pub fn get_key(&self, id: &str) -> Result<[u8; N]> {
         let path =
             self.keys
                 .find_shortest_path(&self.root_id, id)
@@ -54,23 +53,28 @@ where
                     self.root_id, id
                 )))?;
 
-        let mut key: Zeroizing<C::Key> = self.root.clone();
+        let mut key: Zeroizing<[u8; N]> = self.root.clone();
         let mut key_id = &self.root_id;
 
         for node_id in &path[1..] {
-            let encrypted_key =
-                self.keys
-                    .get_wrapping(node_id, &key_id)
+            let encrypted_key: &[u8; M] = self.keys
+                    .get_wrapping(node_id, key_id)
                     .ok_or(Error::InvalidWrapping(
                         node_id.clone(),
                         key_id.clone(),
-                    ))?;
+                    ))?
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| Error::Generic(format!(
+                        "Encrypted key for {} has incorrect length: expected {M} bytes",
+                        node_id
+                    )))?;
 
             key = Zeroizing::new(self.crypto.decrypt(&*key, encrypted_key)?);
             key_id = node_id;
         }
 
-        Ok((*key).clone())
+        Ok(*key)
     }
 
     pub fn add_wrapping(&mut self, parent_id: &str, key_id: &str) -> Result<()> {
@@ -126,11 +130,8 @@ mod tests {
 
         let mut master_key = array_from_mul(&1);
         let mut recovery_key = array_from_mul(&2);
-        assert_eq!(master_key.to_vec(), keychain.get_key(MASTER_LABEL).unwrap());
-        assert_eq!(
-            recovery_key.to_vec(),
-            keychain.get_key(RECOVERY_LABEL).unwrap()
-        );
+        assert_eq!(master_key, keychain.get_key(MASTER_LABEL).unwrap());
+        assert_eq!(recovery_key, keychain.get_key(RECOVERY_LABEL).unwrap());
 
         master_key.reverse();
         recovery_key.reverse();
