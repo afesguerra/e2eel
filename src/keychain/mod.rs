@@ -1,3 +1,4 @@
+use zeroize::{Zeroize, Zeroizing};
 use crate::{Error, Result, graph::KeyGraph};
 
 #[cfg(feature = "aes256-gcm")]
@@ -8,7 +9,7 @@ pub mod xsalsa20_poly1305;
 
 /// Trait for encryption/decryption implementations
 pub trait CryptoProvider: Send + Sync {
-    type Key: AsRef<[u8]> + Clone;
+    type Key: AsRef<[u8]> + Clone + Zeroize;
     type EncryptedKey: AsRef<[u8]> + Clone;
 
     /// Encrypt data with a key
@@ -26,7 +27,7 @@ where
 {
     keys: G,
     root_id: String,
-    root: C::Key,
+    root: Zeroizing<C::Key>,
     crypto: C,
 }
 
@@ -40,7 +41,7 @@ where
             crypto,
             keys,
             root_id: root_id.into(),
-            root: root.clone(),
+            root: Zeroizing::new(root.clone()),
         })
     }
 
@@ -53,7 +54,7 @@ where
                     self.root_id, id
                 )))?;
 
-        let mut key = self.root.clone();
+        let mut key: Zeroizing<C::Key> = self.root.clone();
         let mut key_id = &self.root_id;
 
         for node_id in &path[1..] {
@@ -65,18 +66,18 @@ where
                         key_id.clone(),
                     ))?;
 
-            key = self.crypto.decrypt(&key, encrypted_key)?;
+            key = Zeroizing::new(self.crypto.decrypt(&*key, encrypted_key)?);
             key_id = node_id;
         }
 
-        Ok(key)
+        Ok((*key).clone())
     }
 
     pub fn add_wrapping(&mut self, parent_id: &str, key_id: &str) -> Result<()> {
-        let key = self.get_key(key_id).or(self.crypto.generate_key())?;
-        let parent = self.get_key(parent_id)?;
+        let key = Zeroizing::new(self.get_key(key_id).or(self.crypto.generate_key())?);
+        let parent = Zeroizing::new(self.get_key(parent_id)?);
 
-        let encrypted_key = self.crypto.encrypt(&parent, &key)?;
+        let encrypted_key = self.crypto.encrypt(&*parent, &*key)?;
 
         self.keys.add_wrapping(key_id, parent_id, encrypted_key.as_ref())
     }
