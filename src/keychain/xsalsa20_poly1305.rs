@@ -1,31 +1,30 @@
-use crypto_secretbox::{
-    XSalsa20Poly1305,
-    aead::{Aead, AeadCore, KeyInit, OsRng},
-};
+use aead::{Aead, AeadCore, KeyInit, OsRng};
+use crypto_secretbox::XSalsa20Poly1305;
 
-use crate::{CryptoProvider, Error, Result};
+use crate::{CryptoProvider, Error, Key, Result};
 
 pub struct XSalsa20Poly1305Provider;
 
 impl CryptoProvider<32, 72> for XSalsa20Poly1305Provider {
 
-    fn generate_key(&self) -> Result<[u8; 32]> {
-        let key = XSalsa20Poly1305::generate_key(OsRng);
-        Ok(key.into())
+    fn generate_key(&self) -> Result<Key<32>> {
+        let key: [u8; 32] = XSalsa20Poly1305::generate_key(OsRng).into();
+        Ok(Key::from(key))
     }
 
-    fn decrypt(&self, key: &[u8; 32], data: &[u8; 72]) -> Result<[u8; 32]> {
+    fn decrypt(&self, key: &Key<32>, data: &[u8; 72]) -> Result<Key<32>> {
         // nonce: &[u8; 24], ciphertext: &[u8; 48] (32 bytes data + 16 bytes tag)
         let (nonce, ciphertext) = data.split_at(24);
 
-        XSalsa20Poly1305::new(key.into())
+        let plaintext: [u8; 32] = XSalsa20Poly1305::new((&**key).into())
             .decrypt(nonce.into(), ciphertext)?
             .try_into()
-            .map_err(|_| Error::Generic("Decrypted data has incorrect length".to_string()))
+            .map_err(|_| Error::Generic("Decrypted data has incorrect length".to_string()))?;
+        Ok(Key::from(plaintext))
     }
 
-    fn encrypt(&self, parent: &[u8; 32], data: &[u8; 32]) -> Result<[u8; 72]> {
-        let cipher = XSalsa20Poly1305::new(parent.into());
+    fn encrypt(&self, parent: &Key<32>, data: &Key<32>) -> Result<[u8; 72]> {
+        let cipher = XSalsa20Poly1305::new((&**parent).into());
         let nonce = XSalsa20Poly1305::generate_nonce(OsRng);
         let ciphertext = cipher.encrypt(&nonce, data.as_slice())?;
 

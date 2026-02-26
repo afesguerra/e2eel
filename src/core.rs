@@ -1,3 +1,41 @@
+use std::fmt;
+use std::ops::Deref;
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+/// A fixed-size buffer of sensitive key material that is automatically
+/// zeroed in memory when dropped.
+///
+/// Prefer this type over raw arrays whenever handling plaintext key bytes.
+/// The inner bytes are never exposed through `Debug` or `Display`.
+#[derive(Clone, Zeroize, ZeroizeOnDrop, PartialEq)]
+pub struct Key<const N: usize>([u8; N]);
+
+impl<const N: usize> From<[u8; N]> for Key<N> {
+    fn from(bytes: [u8; N]) -> Self {
+        Self(bytes)
+    }
+}
+
+impl<const N: usize> Deref for Key<N> {
+    type Target = [u8; N];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<const N: usize> AsRef<[u8]> for Key<N> {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl<const N: usize> fmt::Debug for Key<N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Key<{N}>([REDACTED])")
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("No wrapping found for key {0} and parent {1}")]

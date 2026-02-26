@@ -1,5 +1,4 @@
-use zeroize::Zeroizing;
-use crate::{Error, Result, graph::KeyGraph};
+use crate::{Error, Key, Result, graph::KeyGraph};
 
 #[cfg(feature = "aes256-gcm")]
 pub mod aes256;
@@ -12,11 +11,11 @@ pub mod xsalsa20_poly1305;
 /// e.g. `impl CryptoProvider<32, 60> for MyProvider`.
 pub trait CryptoProvider<const N: usize, const M: usize>: Send + Sync {
     /// Encrypt `plaintext` key material using `key`
-    fn encrypt(&self, key: &[u8; N], plaintext: &[u8; N]) -> Result<[u8; M]>;
+    fn encrypt(&self, key: &Key<N>, plaintext: &Key<N>) -> Result<[u8; M]>;
     /// Decrypt ciphertext back into key material using `key`
-    fn decrypt(&self, key: &[u8; N], ciphertext: &[u8; M]) -> Result<[u8; N]>;
+    fn decrypt(&self, key: &Key<N>, ciphertext: &[u8; M]) -> Result<Key<N>>;
     /// Generate a new random key
-    fn generate_key(&self) -> Result<[u8; N]>;
+    fn generate_key(&self) -> Result<Key<N>>;
 }
 
 pub struct KeyChain<G, C, const N: usize, const M: usize>
@@ -26,7 +25,7 @@ where
 {
     keys: G,
     root_id: String,
-    root: Zeroizing<[u8; N]>,
+    root: Key<N>,
     crypto: C,
 }
 
@@ -35,16 +34,16 @@ where
     G: KeyGraph,
     C: CryptoProvider<N, M>,
 {
-    pub fn new(crypto: C, root_id: &str, root: &[u8; N], keys: G) -> Result<Self> {
+    pub fn new(crypto: C, root_id: &str, root: Key<N>, keys: G) -> Result<Self> {
         Ok(Self {
             crypto,
             keys,
             root_id: root_id.into(),
-            root: Zeroizing::new(*root),
+            root,
         })
     }
 
-    pub fn get_key(&self, id: &str) -> Result<[u8; N]> {
+    pub fn get_key(&self, id: &str) -> Result<Key<N>> {
         let path =
             self.keys
                 .find_shortest_path(&self.root_id, id)
@@ -53,7 +52,7 @@ where
                     self.root_id, id
                 )))?;
 
-        let mut key: Zeroizing<[u8; N]> = self.root.clone();
+        let mut key: Key<N> = self.root.clone();
         let mut key_id = &self.root_id;
 
         for node_id in &path[1..] {
@@ -70,18 +69,18 @@ where
                         node_id
                     )))?;
 
-            key = Zeroizing::new(self.crypto.decrypt(&*key, encrypted_key)?);
+            key = self.crypto.decrypt(&key, encrypted_key)?;
             key_id = node_id;
         }
 
-        Ok(*key)
+        Ok(key)
     }
 
     pub fn add_wrapping(&mut self, parent_id: &str, key_id: &str) -> Result<()> {
-        let key = Zeroizing::new(self.get_key(key_id).or(self.crypto.generate_key())?);
-        let parent = Zeroizing::new(self.get_key(parent_id)?);
+        let key = self.get_key(key_id).or_else(|_| self.crypto.generate_key())?;
+        let parent = self.get_key(parent_id)?;
 
-        let encrypted_key = self.crypto.encrypt(&*parent, &*key)?;
+        let encrypted_key = self.crypto.encrypt(&parent, &key)?;
 
         self.keys.add_wrapping(key_id, parent_id, encrypted_key.as_ref())
     }
@@ -113,7 +112,7 @@ mod tests {
         let mut keychain = KeyChain::new(
             TestCrypto::new(),
             KEK_LABEL,
-            &KEK,
+            Key::from(KEK),
             InMemoryKeyGraph::new(),
         )
         .expect("KeyChain creation failed");
@@ -130,8 +129,8 @@ mod tests {
 
         let mut master_key = array_from_mul(&1);
         let mut recovery_key = array_from_mul(&2);
-        assert_eq!(master_key, keychain.get_key(MASTER_LABEL).unwrap());
-        assert_eq!(recovery_key, keychain.get_key(RECOVERY_LABEL).unwrap());
+        assert_eq!(master_key, *keychain.get_key(MASTER_LABEL).unwrap());
+        assert_eq!(recovery_key, *keychain.get_key(RECOVERY_LABEL).unwrap());
 
         master_key.reverse();
         recovery_key.reverse();

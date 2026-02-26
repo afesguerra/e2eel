@@ -19,20 +19,20 @@ impl TestCrypto {
 }
 
 impl CryptoProvider<32, 32> for TestCrypto {
-    fn generate_key(&self) -> Result<[u8; 32]> {
+    fn generate_key(&self) -> Result<Key<32>> {
         let n = self.0.fetch_add(1, Ordering::Relaxed);
-        Ok(array_from_mul(&n))
+        Ok(Key::from(array_from_mul(&n)))
     }
 
-    fn encrypt(&self, _key: &[u8; 32], plaintext: &[u8; 32]) -> Result<[u8; 32]> {
-        let mut data = *plaintext;
+    fn encrypt(&self, _key: &Key<32>, plaintext: &Key<32>) -> Result<[u8; 32]> {
+        let mut data = **plaintext;
         data.reverse();
         Ok(data)
     }
 
-    fn decrypt(&self, _key: &[u8; 32], ciphertext: &[u8; 32]) -> Result<[u8; 32]> {
+    fn decrypt(&self, _key: &Key<32>, ciphertext: &[u8; 32]) -> Result<Key<32>> {
         let mut data: [u8; 32] = *ciphertext;
         data.reverse();
-        Ok(data)
+        Ok(Key::from(data))
     }
 }

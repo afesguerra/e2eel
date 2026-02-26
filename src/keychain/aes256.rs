@@ -1,32 +1,31 @@
-use aes_gcm::{
-    AeadCore, Aes256Gcm,
-    aead::{Aead, KeyInit, OsRng},
-};
+use aead::{Aead, AeadCore, KeyInit, OsRng};
+use aes_gcm::Aes256Gcm;
 
-use crate::{CryptoProvider, Error, Result};
+use crate::{CryptoProvider, Error, Key, Result};
 
 pub struct Aes256GcmProvider;
 
 impl CryptoProvider<32, 60> for Aes256GcmProvider {
-    fn generate_key(&self) -> Result<[u8; 32]> {
-        let key = Aes256Gcm::generate_key(OsRng);
-        Ok(key.into())
+    fn generate_key(&self) -> Result<Key<32>> {
+        let key: [u8; 32] = Aes256Gcm::generate_key(OsRng).into();
+        Ok(Key::from(key))
     }
 
-    fn decrypt(&self, key: &[u8; 32], data: &[u8; 60]) -> Result<[u8; 32]> {
+    fn decrypt(&self, key: &Key<32>, data: &[u8; 60]) -> Result<Key<32>> {
         let (nonce, ciphertext) = data.split_at(12);
         // nonce: &[u8; 12], ciphertext: &[u8; 48] (32 bytes data + 16 bytes tag)
 
-        Aes256Gcm::new(key.into())
+        let plaintext: [u8; 32] = Aes256Gcm::new((&**key).into())
             .decrypt(nonce.into(), ciphertext)?
             .try_into()
-            .map_err(|_| Error::Generic("Decrypted data has incorrect length".to_string()))
+            .map_err(|_| Error::Generic("Decrypted data has incorrect length".to_string()))?;
+        Ok(Key::from(plaintext))
     }
 
-    fn encrypt(&self, parent: &[u8; 32], data: &[u8; 32]) -> Result<[u8; 60]> {
-        let cipher = Aes256Gcm::new_from_slice(parent)?;
+    fn encrypt(&self, parent: &Key<32>, data: &Key<32>) -> Result<[u8; 60]> {
+        let cipher = Aes256Gcm::new_from_slice(&**parent)?;
         let nonce = Aes256Gcm::generate_nonce(OsRng);
-        let ciphertext = cipher.encrypt(&nonce, data.as_slice())?;
+        let ciphertext = cipher.encrypt(&nonce, (**data).as_slice())?;
 
         let mut result = [0u8; 60];
         result[..12].copy_from_slice(&nonce);
@@ -49,7 +48,7 @@ mod tests {
         // Keys should be 32 bytes
         assert_eq!(key1.len(), 32);
         assert_eq!(key2.len(), 32);
-        
+
         // Keys should be different (extremely unlikely to be the same)
         assert_ne!(key1, key2);
     }
@@ -65,7 +64,7 @@ mod tests {
 
         // Encrypted data should be 60 bytes (12 nonce + 48 ciphertext+tag)
         assert_eq!(encrypted.len(), 60);
-        
+
         // Decrypted data should match original
         assert_eq!(data_key, decrypted);
     }
@@ -81,7 +80,7 @@ mod tests {
 
         // Due to random nonce, encrypted outputs should be different
         assert_ne!(encrypted1, encrypted2);
-        
+
         // But both should decrypt to the same value
         let decrypted1 = provider.decrypt(&parent_key, &encrypted1).expect("Failed to decrypt");
         let decrypted2 = provider.decrypt(&parent_key, &encrypted2).expect("Failed to decrypt");
