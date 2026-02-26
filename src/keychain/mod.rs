@@ -1,10 +1,6 @@
-use crate::{Error, Key, Result, graph::KeyGraph};
+use crate::{Error, Key, KeyGraph, Result};
 
-#[cfg(feature = "aes256-gcm")]
-pub mod aes256;
-
-#[cfg(feature = "xsalsa20-poly1305")]
-pub mod xsalsa20_poly1305;
+pub mod aead;
 
 /// Trait for encryption/decryption implementations.
 /// `N` is the size of the key in bytes, `M` is the size of an encrypted key in bytes.
