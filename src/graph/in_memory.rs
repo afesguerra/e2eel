@@ -99,6 +99,10 @@ impl KeyGraph for InMemoryKeyGraph {
         self.nodes.get(id)?.wrappings.get(&parent.to_string())
     }
 
+    fn get_wrappings(&self, parent: &str) -> Vec<&Vec<u8>> {
+        self.nodes.values().filter_map(|f| f.wrappings.get(&parent.to_string())).collect()
+    }
+
     fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>> {
         let src = src.to_string();
         let dest = dest.to_string();
@@ -308,6 +312,14 @@ mod tests {
         let graph = sample_graph();
         // MASTER_LABEL is a valid node but "ghost_parent" is not its parent
         assert!(graph.get_wrapping(MASTER_LABEL, "ghost_parent").is_none());
+    }
+
+    #[test]
+    fn test_get_wrappings() {
+        let graph = sample_graph();
+        let wrappings = graph.get_wrappings(KEK_LABEL);
+        assert_eq!(wrappings.len(), 1);
+        assert_eq!(wrappings[0], &MASTER_KEY);
     }
 
     #[test]

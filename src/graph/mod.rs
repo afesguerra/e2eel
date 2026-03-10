@@ -17,6 +17,9 @@ pub trait KeyGraph {
     /// Retrieves the wrapping of a key for a specific parent.
     fn get_wrapping(&self, id: &str, parent: &str) -> Option<&Vec<u8>>;
 
+    /// Retrieves the wrappings of a specific parent.
+    fn get_wrappings(&self, parent: &str) -> Vec<&Vec<u8>>;
+
     /// Finds the shortest path between two key IDs in the graph.
     fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>>;
 }
