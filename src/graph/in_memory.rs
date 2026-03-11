@@ -43,64 +43,16 @@ impl InMemoryKeyGraph {
         }
     }
 
+    fn has_root(&self, id: &str) -> bool {
+        self.roots.contains(&id.to_string())
+    }
+
     fn has_node(&self, id: &str) -> bool {
         self.nodes.contains_key(id)
     }
 
     fn has_root_or_node(&self, id: &str) -> bool {
         self.has_root(id) || self.has_node(id)
-    }
-
-    /// Loads a key graph from a JSON file.
-    #[cfg(feature = "json")]
-    pub fn load_from_json(path: &str) -> Result<Self> {
-        let json = std::fs::read_to_string(path)?;
-        Ok(serde_json::from_str(&json)?)
-    }
-
-    /// Saves the key graph to a JSON file.
-    #[cfg(feature = "json")]
-    pub fn save_to_json(&self, path: &str) -> Result<()> {
-        let json = serde_json::to_string_pretty(self)?;
-        std::fs::write(path, json)?;
-        Ok(())
-    }
-}
-
-impl KeyGraph for InMemoryKeyGraph {
-    fn has_root(&self, id: &str) -> bool {
-        self.roots.contains(&id.to_string())
-    }
-
-    fn add_root(&mut self, id: &str) -> Result<()> {
-        self.roots.push(id.to_string());
-        Ok(())
-    }
-
-    fn add_wrapping(&mut self, id: &str, parent: &str, data: &[u8]) -> Result<()> {
-        if !self.has_root_or_node(parent) {
-            return Err(Error::InvalidParentKeyID(parent.to_string()));
-        }
-
-        if !self.has_node(id) {
-            let new_node = KeyNode::new();
-            self.nodes.insert(id.into(), new_node);
-        }
-
-        let node = self
-            .nodes
-            .get_mut(id)
-            .ok_or(Error::InvalidKeyID(id.to_string()))?;
-        node.add_wrapping(parent, data);
-        Ok(())
-    }
-
-    fn get_wrapping(&self, id: &str, parent: &str) -> Option<&Vec<u8>> {
-        self.nodes.get(id)?.wrappings.get(&parent.to_string())
-    }
-
-    fn get_wrappings(&self, parent: &str) -> Vec<&Vec<u8>> {
-        self.nodes.values().filter_map(|f| f.wrappings.get(&parent.to_string())).collect()
     }
 
     fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>> {
@@ -150,6 +102,69 @@ impl KeyGraph for InMemoryKeyGraph {
         }
         None
     }
+
+    /// Loads a key graph from a JSON file.
+    #[cfg(feature = "json")]
+    pub fn load_from_json(path: &str) -> Result<Self> {
+        let json = std::fs::read_to_string(path)?;
+        Ok(serde_json::from_str(&json)?)
+    }
+
+    /// Saves the key graph to a JSON file.
+    #[cfg(feature = "json")]
+    pub fn save_to_json(&self, path: &str) -> Result<()> {
+        let json = serde_json::to_string_pretty(self)?;
+        std::fs::write(path, json)?;
+        Ok(())
+    }
+}
+
+impl KeyGraph for InMemoryKeyGraph {
+    fn add_root(&mut self, id: &str) -> Result<()> {
+        self.roots.push(id.to_string());
+        Ok(())
+    }
+
+    fn add_wrapping(&mut self, id: &str, parent: &str, data: &[u8]) -> Result<()> {
+        if !self.has_root_or_node(parent) {
+            return Err(Error::InvalidParentKeyID(parent.to_string()));
+        }
+
+        if !self.has_node(id) {
+            let new_node = KeyNode::new();
+            self.nodes.insert(id.into(), new_node);
+        }
+
+        let node = self
+            .nodes
+            .get_mut(id)
+            .ok_or(Error::InvalidKeyID(id.to_string()))?;
+        node.add_wrapping(parent, data);
+        Ok(())
+    }
+
+    fn get_wrapping(&self, id: &str, parent: &str) -> Option<&Vec<u8>> {
+        self.nodes.get(id)?.wrappings.get(&parent.to_string())
+    }
+
+    fn get_wrappings(&self, parent: &str) -> Vec<&Vec<u8>> {
+        self.nodes.values().filter_map(|f| f.wrappings.get(&parent.to_string())).collect()
+    }
+    
+    fn find_path(&self, src: &str, dest: &str) -> Option<Vec<&Vec<u8>>> {
+        let ids = self.find_shortest_path(src, dest)?;
+
+        let mut parent: &str = src;
+        let mut keys: Vec<&Vec<u8>> = Vec::new();
+        for id in &ids[1..] {
+            let key = self.get_wrapping(&id, parent)?;
+            keys.push(key);
+            parent = &id;
+        }
+
+        Some(keys)
+    }
+
 }
 
 #[cfg(test)]

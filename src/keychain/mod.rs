@@ -42,31 +42,21 @@ where
     pub fn get_key(&self, id: &str) -> Result<Key<N>> {
         let path =
             self.keys
-                .find_shortest_path(&self.root_id, id)
+                .find_path(&self.root_id, id)
                 .ok_or(Error::NoSuchPath(format!(
                     "There is no path from {} to {}",
                     self.root_id, id
                 )))?;
 
         let mut key: Key<N> = self.root.clone();
-        let mut key_id = &self.root_id;
 
-        for node_id in &path[1..] {
-            let encrypted_key: &[u8; M] = self.keys
-                    .get_wrapping(node_id, key_id)
-                    .ok_or(Error::InvalidWrapping(
-                        node_id.clone(),
-                        key_id.clone(),
-                    ))?
+        for node_id in path {
+            let encrypted_key: &[u8; M] = node_id
                     .as_slice()
                     .try_into()
-                    .map_err(|_| Error::Generic(format!(
-                        "Encrypted key for {} has incorrect length: expected {M} bytes",
-                        node_id
-                    )))?;
+                    .map_err(|_| Error::Generic("Encrypted key has incorrect length: expected {M} bytes".to_string()))?;
 
             key = self.crypto.decrypt(&key, encrypted_key)?;
-            key_id = node_id;
         }
 
         Ok(key)
