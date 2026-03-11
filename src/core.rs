@@ -60,6 +60,8 @@ pub enum Error {
     #[cfg(feature = "aes256-gcm")]
     #[error("Invalid key size")]
     InvalidKeySize(#[from] aes_gcm::aes::cipher::InvalidLength),
+    #[error("Key ID {0} already exists in graph")]
+    DuplicateKeyID(String),
     // Add more...
 }
 

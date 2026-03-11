@@ -27,7 +27,7 @@ impl KeyNode {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct InMemoryKeyGraph {
     version: String,
-    roots: Vec<String>,
+    roots: HashSet<String>,
     nodes: HashMap<String, KeyNode>,
 }
 
@@ -38,21 +38,13 @@ impl InMemoryKeyGraph {
     pub fn new() -> Self {
         Self {
             version: CURRENT_VERSION.into(),
-            roots: vec![],
+            roots: HashSet::new(),
             nodes: HashMap::new(),
         }
     }
 
-    fn has_root(&self, id: &str) -> bool {
-        self.roots.contains(&id.to_string())
-    }
-
-    fn has_node(&self, id: &str) -> bool {
-        self.nodes.contains_key(id)
-    }
-
     fn has_root_or_node(&self, id: &str) -> bool {
-        self.has_root(id) || self.has_node(id)
+        self.roots.contains(&id.to_string()) || self.nodes.contains_key(id)
     }
 
     fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>> {
@@ -121,7 +113,11 @@ impl InMemoryKeyGraph {
 
 impl KeyGraph for InMemoryKeyGraph {
     fn add_root(&mut self, id: &str) -> Result<()> {
-        self.roots.push(id.to_string());
+        if self.has_root_or_node(id) {
+            return Err(Error::DuplicateKeyID(id.to_string()));
+        }
+
+        self.roots.insert(id.to_string());
         Ok(())
     }
 
@@ -130,7 +126,7 @@ impl KeyGraph for InMemoryKeyGraph {
             return Err(Error::InvalidParentKeyID(parent.to_string()));
         }
 
-        if !self.has_node(id) {
+        if !self.nodes.contains_key(id) {
             let new_node = KeyNode::new();
             self.nodes.insert(id.into(), new_node);
         }
