@@ -75,7 +75,7 @@ where
         self.keys.add_root(key_id)
     }
 
-    pub fn get_graph(&self) -> &dyn KeyGraph {
+    pub fn get_graph(&self) -> &G {
         &self.keys
     }
 }

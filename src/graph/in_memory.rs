@@ -47,54 +47,6 @@ impl InMemoryKeyGraph {
         self.roots.contains(&id.to_string()) || self.nodes.contains_key(id)
     }
 
-    fn find_shortest_path(&self, src: &str, dest: &str) -> Option<Vec<String>> {
-        let src = src.to_string();
-        let dest = dest.to_string();
-
-        if !self.has_root_or_node(&src) || !self.has_root_or_node(&dest) {
-            return None;
-        }
-
-        if src == dest {
-            return Some(vec![src]);
-        }
-
-        // Lazy reverse BFS: dest -> ... -> src (no full adj build)
-        let mut queue = VecDeque::new();
-        queue.push_back(dest.clone());
-
-        let mut visited = HashSet::new();
-        visited.insert(dest.clone());
-
-        let mut parent: HashMap<String, String> = HashMap::new();
-
-        while let Some(curr) = queue.pop_front() {
-            if curr == src {
-                // Reconstruct: src <- ... <- dest → reverse to src -> dest
-                let mut path = vec![src.clone()];
-                let mut at = src;
-                while at != dest {
-                    at = parent.get(&at).cloned()?;
-                    path.push(at.clone());
-                }
-                return Some(path);
-            }
-
-            // Forward neighbors: parents of curr (direct from its wrappings keys)
-            if let Some(node) = self.nodes.get(&curr) {
-                for parent_id in node.wrappings.keys() {
-                    let p = parent_id.as_str();
-                    if !visited.contains(p) {
-                        visited.insert(p.to_string());
-                        parent.insert(p.to_string(), curr.clone());
-                        queue.push_back(p.to_string());
-                    }
-                }
-            }
-        }
-        None
-    }
-
     /// Loads a key graph from a JSON file.
     #[cfg(feature = "json")]
     pub fn load_from_json(path: &str) -> Result<Self> {
@@ -146,19 +98,52 @@ impl KeyGraph for InMemoryKeyGraph {
     fn get_wrappings(&self, parent: &str) -> Vec<&Vec<u8>> {
         self.nodes.values().filter_map(|f| f.wrappings.get(&parent.to_string())).collect()
     }
-    
-    fn find_path(&self, src: &str, dest: &str) -> Option<Vec<&Vec<u8>>> {
-        let ids = self.find_shortest_path(src, dest)?;
 
-        let mut parent: &str = src;
-        let mut keys: Vec<&Vec<u8>> = Vec::new();
-        for id in &ids[1..] {
-            let key = self.get_wrapping(&id, parent)?;
-            keys.push(key);
-            parent = &id;
+    fn find_path(&self, src: &str, dest: &str) -> Option<Vec<&Vec<u8>>> {
+        if !self.has_root_or_node(&src) || !self.has_root_or_node(&dest) {
+            return None;
         }
 
-        Some(keys)
+        if src == dest {
+            return Some(vec![]);
+        }
+
+        // Lazy reverse BFS: dest -> ... -> src (no full adj build)
+        let mut queue = VecDeque::<&str>::new();
+        queue.push_back(dest);
+
+        let mut visited = HashSet::<&str>::new();
+        visited.insert(dest);
+
+        let mut parent: HashMap<&str, &str> = HashMap::new();
+
+        while let Some(curr) = queue.pop_front() {
+            if curr == src {
+                // Reconstruct: src <- ... <- dest → reverse to src -> dest
+                let mut path = Vec::<&Vec<u8>>::new();
+                let mut at = src;
+                let mut old_parent: &str;
+                while at != dest {
+                    old_parent = at;
+                    at = parent.get(at)?;
+                    path.push(self.get_wrapping(at, old_parent)?);
+                }
+                return Some(path);
+            }
+
+            // Forward neighbors: parents of curr (direct from its wrappings keys)
+            if let Some(node) = self.nodes.get(curr) {
+                for parent_id in node.wrappings.keys() {
+                    let p = parent_id.as_str();
+                    if !visited.contains(p) {
+                        visited.insert(p);
+                        parent.insert(p, curr);
+                        queue.push_back(p);
+                    }
+                }
+            }
+        }
+        None
     }
 
 }
@@ -193,16 +178,12 @@ mod tests {
         let graph = sample_graph();
 
         let shortest_path = graph
-            .find_shortest_path(KEK_LABEL, RECOVERY_LABEL)
+            .find_path(KEK_LABEL, RECOVERY_LABEL)
             .expect("Cannot find path between KEK and RECOVERY");
 
         assert_eq!(
             shortest_path,
-            vec![
-                KEK_LABEL.to_string(),
-                MASTER_LABEL.to_string(),
-                RECOVERY_LABEL.to_string()
-            ]
+            vec![&MASTER_KEY, &RECOVERY_KEY]
         );
     }
 
@@ -220,35 +201,35 @@ mod tests {
         graph.add_wrapping("nodeC", "nodeB1", &mock_data).unwrap();
 
         assert_eq!(
-            vec!["root", "nodeB1", "nodeC"],
-            graph.find_shortest_path("root", "nodeC").unwrap()
+            vec![&mock_data.to_vec(), &mock_data.to_vec()],
+            graph.find_path("root", "nodeC").unwrap()
         )
     }
 
     #[test]
     fn test_path_nonexistent_src() {
         let graph = sample_graph();
-        assert!(graph.find_shortest_path("ghost", RECOVERY_LABEL).is_none());
+        assert!(graph.find_path("ghost", RECOVERY_LABEL).is_none());
     }
 
     #[test]
     fn test_path_nonexistent_dest() {
         let graph = sample_graph();
-        assert!(graph.find_shortest_path(KEK_LABEL, "ghost").is_none());
+        assert!(graph.find_path(KEK_LABEL, "ghost").is_none());
     }
 
     #[test]
     fn test_path_both_nonexistent() {
         let graph = sample_graph();
-        assert!(graph.find_shortest_path("ghost_src", "ghost_dest").is_none());
+        assert!(graph.find_path("ghost_src", "ghost_dest").is_none());
     }
 
     #[test]
     fn test_path_same_root() {
         let graph = sample_graph();
         assert_eq!(
-            graph.find_shortest_path(KEK_LABEL, KEK_LABEL),
-            Some(vec![KEK_LABEL.to_string()])
+            graph.find_path(KEK_LABEL, KEK_LABEL),
+            Some(vec![])
         );
     }
 
@@ -256,8 +237,8 @@ mod tests {
     fn test_path_same_node() {
         let graph = sample_graph();
         assert_eq!(
-            graph.find_shortest_path(RECOVERY_LABEL, RECOVERY_LABEL),
-            Some(vec![RECOVERY_LABEL.to_string()])
+            graph.find_path(RECOVERY_LABEL, RECOVERY_LABEL),
+            Some(vec![])
         );
     }
 
@@ -265,8 +246,8 @@ mod tests {
     fn test_path_direct_adjacent() {
         let graph = sample_graph();
         assert_eq!(
-            graph.find_shortest_path(KEK_LABEL, MASTER_LABEL),
-            Some(vec![KEK_LABEL.to_string(), MASTER_LABEL.to_string()])
+            graph.find_path(KEK_LABEL, MASTER_LABEL).unwrap(),
+            vec![&MASTER_KEY]
         );
     }
 
@@ -274,7 +255,7 @@ mod tests {
     fn test_path_same_nonexistent_node() {
         // src == dest but neither exists — existence check must fire before the same-node shortcut
         let graph = sample_graph();
-        assert!(graph.find_shortest_path("ghost", "ghost").is_none());
+        assert!(graph.find_path("ghost", "ghost").is_none());
     }
 
     #[test]
@@ -289,7 +270,7 @@ mod tests {
         graph.add_root("rootB").unwrap();
         graph.add_wrapping("nodeB", "rootB", &mock_data).unwrap();
 
-        assert!(graph.find_shortest_path("rootA", "nodeB").is_none());
+        assert!(graph.find_path("rootA", "nodeB").is_none());
     }
 
     // --- add_wrapping edge cases ---
