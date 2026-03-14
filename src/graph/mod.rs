@@ -12,7 +12,7 @@ pub trait KeyGraph {
     fn add_wrapping(&mut self, id: &str, parent: &str, data: &[u8]) -> Result<()>;
 
     /// Retrieves the wrapping of a key for a specific parent.
-    fn get_wrapping(&self, id: &str, parent: &str) -> Option<&Vec<u8>>;
+    fn get_wrapping(&self, parent: &str, id: &str) -> Option<&Vec<u8>>;
 
     /// Retrieves the wrappings of a specific parent.
     fn get_wrappings(&self, parent: &str) -> Vec<&Vec<u8>>;

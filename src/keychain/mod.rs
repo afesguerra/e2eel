@@ -68,7 +68,7 @@ where
 
         let encrypted_key = self.crypto.encrypt(&parent, &key)?;
 
-        self.keys.add_wrapping(key_id, parent_id, encrypted_key.as_ref())
+        self.keys.add_wrapping(key_id, parent_id, &encrypted_key)
     }
 
     pub fn add_root(&mut self, key_id: &str) -> Result<()> {
@@ -125,7 +125,7 @@ mod tests {
             master_key,
             keychain
                 .keys
-                .get_wrapping(MASTER_LABEL, KEK_LABEL)
+                .get_wrapping(KEK_LABEL, MASTER_LABEL)
                 .unwrap()
                 .clone()
                 .as_mut_slice()
@@ -134,7 +134,7 @@ mod tests {
             recovery_key,
             keychain
                 .keys
-                .get_wrapping(RECOVERY_LABEL, MASTER_LABEL)
+                .get_wrapping(MASTER_LABEL, RECOVERY_LABEL)
                 .unwrap()
                 .clone()
                 .as_mut_slice()

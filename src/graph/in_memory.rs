@@ -91,7 +91,7 @@ impl KeyGraph for InMemoryKeyGraph {
         Ok(())
     }
 
-    fn get_wrapping(&self, id: &str, parent: &str) -> Option<&Vec<u8>> {
+    fn get_wrapping(&self, parent: &str, id: &str) -> Option<&Vec<u8>> {
         self.nodes.get(id)?.wrappings.get(&parent.to_string())
     }
 
@@ -126,7 +126,7 @@ impl KeyGraph for InMemoryKeyGraph {
                 while at != dest {
                     old_parent = at;
                     at = parent.get(at)?;
-                    path.push(self.get_wrapping(at, old_parent)?);
+                    path.push(self.get_wrapping(old_parent, at)?);
                 }
                 return Some(path);
             }
@@ -290,20 +290,20 @@ mod tests {
         let data = vec![1u8, 2, 3, 4];
         graph.add_root("root").unwrap();
         graph.add_wrapping("child", "root", &data).unwrap();
-        assert_eq!(graph.get_wrapping("child", "root"), Some(&data));
+        assert_eq!(graph.get_wrapping("root", "child"), Some(&data));
     }
 
     #[test]
     fn test_get_wrapping_unknown_node() {
         let graph = sample_graph();
-        assert!(graph.get_wrapping("ghost", KEK_LABEL).is_none());
+        assert!(graph.get_wrapping(KEK_LABEL, "ghost").is_none());
     }
 
     #[test]
     fn test_get_wrapping_unknown_parent() {
         let graph = sample_graph();
         // MASTER_LABEL is a valid node but "ghost_parent" is not its parent
-        assert!(graph.get_wrapping(MASTER_LABEL, "ghost_parent").is_none());
+        assert!(graph.get_wrapping("ghost_parent", MASTER_LABEL).is_none());
     }
 
     #[test]
