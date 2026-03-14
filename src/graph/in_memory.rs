@@ -2,6 +2,8 @@ use crate::{Error, Result};
 use super::KeyGraph;
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::borrow::Cow;
+use std::option::Option;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
@@ -44,7 +46,7 @@ impl InMemoryKeyGraph {
     }
 
     fn has_root_or_node(&self, id: &str) -> bool {
-        self.roots.contains(&id.to_string()) || self.nodes.contains_key(id)
+        self.roots.contains(id) || self.nodes.contains_key(id)
     }
 
     /// Loads a key graph from a JSON file.
@@ -91,16 +93,26 @@ impl KeyGraph for InMemoryKeyGraph {
         Ok(())
     }
 
-    fn get_wrapping(&self, parent: &str, id: &str) -> Option<&Vec<u8>> {
-        self.nodes.get(id)?.wrappings.get(&parent.to_string())
+    fn get_wrapping(&self, parent: &str, id: &str) -> Option<Cow<'_, [u8]>> {
+        self
+            .nodes
+            .get(id)?
+            .wrappings
+            .get(parent)
+            .map(Cow::from)
     }
 
-    fn get_wrappings(&self, parent: &str) -> Vec<&Vec<u8>> {
-        self.nodes.values().filter_map(|f| f.wrappings.get(&parent.to_string())).collect()
+    fn get_wrappings(&self, parent: &str) -> Vec<Cow<'_, [u8]>> {
+        self
+            .nodes
+            .values()
+            .filter_map(|f| f.wrappings.get(parent))
+            .map(Cow::from)
+            .collect()
     }
 
-    fn find_path(&self, src: &str, dest: &str) -> Option<Vec<&Vec<u8>>> {
-        if !self.has_root_or_node(&src) || !self.has_root_or_node(&dest) {
+    fn find_path(&self, src: &str, dest: &str) -> Option<Vec<Cow<'_, [u8]>>> {
+        if !self.has_root_or_node(src) || !self.has_root_or_node(dest) {
             return None;
         }
 
@@ -120,7 +132,7 @@ impl KeyGraph for InMemoryKeyGraph {
         while let Some(curr) = queue.pop_front() {
             if curr == src {
                 // Reconstruct: src <- ... <- dest → reverse to src -> dest
-                let mut path = Vec::<&Vec<u8>>::new();
+                let mut path = vec![];
                 let mut at = src;
                 let mut old_parent: &str;
                 while at != dest {
@@ -183,7 +195,7 @@ mod tests {
 
         assert_eq!(
             shortest_path,
-            vec![&MASTER_KEY, &RECOVERY_KEY]
+            vec![Cow::from(&MASTER_KEY), Cow::from(&RECOVERY_KEY)]
         );
     }
 
@@ -201,7 +213,7 @@ mod tests {
         graph.add_wrapping("nodeC", "nodeB1", &mock_data).unwrap();
 
         assert_eq!(
-            vec![&mock_data.to_vec(), &mock_data.to_vec()],
+            vec![Cow::from(&mock_data), Cow::from(&mock_data)],
             graph.find_path("root", "nodeC").unwrap()
         )
     }
@@ -247,7 +259,7 @@ mod tests {
         let graph = sample_graph();
         assert_eq!(
             graph.find_path(KEK_LABEL, MASTER_LABEL).unwrap(),
-            vec![&MASTER_KEY]
+            vec![Cow::from(&MASTER_KEY)]
         );
     }
 
@@ -290,7 +302,7 @@ mod tests {
         let data = vec![1u8, 2, 3, 4];
         graph.add_root("root").unwrap();
         graph.add_wrapping("child", "root", &data).unwrap();
-        assert_eq!(graph.get_wrapping("root", "child"), Some(&data));
+        assert_eq!(graph.get_wrapping("root", "child"), Some(Cow::from(&data)));
     }
 
     #[test]
@@ -311,7 +323,7 @@ mod tests {
         let graph = sample_graph();
         let wrappings = graph.get_wrappings(KEK_LABEL);
         assert_eq!(wrappings.len(), 1);
-        assert_eq!(wrappings[0], &MASTER_KEY);
+        assert_eq!(wrappings[0], Cow::from(&MASTER_KEY));
     }
 
     #[test]

@@ -52,9 +52,8 @@ where
 
         for node_id in path {
             let encrypted_key: &[u8; M] = node_id
-                    .as_slice()
-                    .try_into()
-                    .map_err(|_| Error::Generic("Encrypted key has incorrect length: expected {M} bytes".to_string()))?;
+                    .as_array()
+                    .ok_or(Error::Generic(format!("Encrypted key has incorrect length: expected {M} bytes")))?;
 
             key = self.crypto.decrypt(&key, encrypted_key)?;
         }
@@ -122,22 +121,20 @@ mod tests {
         recovery_key.reverse();
 
         assert_eq!(
-            master_key,
+            &master_key,
             keychain
                 .keys
                 .get_wrapping(KEK_LABEL, MASTER_LABEL)
                 .unwrap()
-                .clone()
-                .as_mut_slice()
+                .as_ref()
         );
         assert_eq!(
-            recovery_key,
+            &recovery_key,
             keychain
                 .keys
                 .get_wrapping(MASTER_LABEL, RECOVERY_LABEL)
                 .unwrap()
-                .clone()
-                .as_mut_slice()
+                .as_ref()
         );
     }
 }
