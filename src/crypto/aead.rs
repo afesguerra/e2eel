@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
-use crate::{CryptoProvider, Error, Key, Result};
+use super::CryptoProvider;
+use crate::{Error, Key, Result};
 use aead::generic_array::typenum::Unsigned;
 use aead::{Aead, AeadCore, KeyInit, OsRng};
 
