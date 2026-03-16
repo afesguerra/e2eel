@@ -47,7 +47,7 @@ where
         for node_id in path {
             let encrypted_key: &[u8; M] = node_id
                     .as_array()
-                    .ok_or(Error::Generic(format!("Encrypted key has incorrect length: expected {M} bytes")))?;
+                    .ok_or_else(|| Error::Generic(format!("Encrypted key has incorrect length: expected {M} bytes")))?;
 
             key = self.crypto.decrypt(&key, encrypted_key)?;
         }

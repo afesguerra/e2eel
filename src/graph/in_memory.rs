@@ -88,7 +88,7 @@ impl KeyGraph for InMemoryKeyGraph {
         let node = self
             .nodes
             .get_mut(id)
-            .ok_or(Error::InvalidKeyID(id.to_string()))?;
+            .ok_or_else(|| Error::InvalidKeyID(id.to_string()))?;
         node.add_wrapping(parent, data);
         Ok(())
     }
