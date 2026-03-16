@@ -11,7 +11,7 @@ pub trait KeyGraph {
     fn add_root(&mut self, id: &str) -> Result<()>;
 
     /// Adds a wrapping of a key under a parent key.
-    fn add_wrapping(&mut self, id: &str, parent: &str, data: &[u8]) -> Result<()>;
+    fn add_wrapping(&mut self, parent: &str, id: &str, data: &[u8]) -> Result<()>;
 
     /// Retrieves the wrapping of a key for a specific parent.
     fn get_wrapping(&self, parent: &str, id: &str) -> Option<Cow<'_, [u8]>>;

@@ -75,7 +75,7 @@ impl KeyGraph for InMemoryKeyGraph {
         Ok(())
     }
 
-    fn add_wrapping(&mut self, id: &str, parent: &str, data: &[u8]) -> Result<()> {
+    fn add_wrapping(&mut self, parent: &str, id: &str, data: &[u8]) -> Result<()> {
         if !self.has_root_or_node(parent) {
             return Err(Error::InvalidParentKeyID(parent.to_string()));
         }
@@ -180,8 +180,8 @@ mod tests {
     fn sample_graph() -> InMemoryKeyGraph {
         let mut graph = InMemoryKeyGraph::new();
         graph.add_root(KEK_LABEL).unwrap();
-        graph.add_wrapping(MASTER_LABEL, KEK_LABEL, &MASTER_KEY).unwrap();
-        graph.add_wrapping(RECOVERY_LABEL, MASTER_LABEL, &RECOVERY_KEY).unwrap();
+        graph.add_wrapping(KEK_LABEL, MASTER_LABEL, &MASTER_KEY).unwrap();
+        graph.add_wrapping(MASTER_LABEL, RECOVERY_LABEL, &RECOVERY_KEY).unwrap();
         graph
     }
 
@@ -205,12 +205,12 @@ mod tests {
         let mut graph = InMemoryKeyGraph::new();
 
         graph.add_root("root").unwrap();
-        graph.add_wrapping("nodeA1", "root", &mock_data).unwrap();
-        graph.add_wrapping("nodeB1", "root", &mock_data).unwrap();
+        graph.add_wrapping("root", "nodeA1", &mock_data).unwrap();
+        graph.add_wrapping("root", "nodeB1", &mock_data).unwrap();
 
-        graph.add_wrapping("nodeA2", "nodeA1", &mock_data).unwrap();
-        graph.add_wrapping("nodeC", "nodeA2", &mock_data).unwrap();
-        graph.add_wrapping("nodeC", "nodeB1", &mock_data).unwrap();
+        graph.add_wrapping("nodeA1", "nodeA2", &mock_data).unwrap();
+        graph.add_wrapping("nodeA2", "nodeC", &mock_data).unwrap();
+        graph.add_wrapping("nodeB1", "nodeC", &mock_data).unwrap();
 
         assert_eq!(
             vec![Cow::from(&mock_data), Cow::from(&mock_data)],
@@ -277,10 +277,10 @@ mod tests {
         let mut graph = InMemoryKeyGraph::new();
 
         graph.add_root("rootA").unwrap();
-        graph.add_wrapping("nodeA", "rootA", &mock_data).unwrap();
+        graph.add_wrapping("rootA", "nodeA", &mock_data).unwrap();
 
         graph.add_root("rootB").unwrap();
-        graph.add_wrapping("nodeB", "rootB", &mock_data).unwrap();
+        graph.add_wrapping("rootB", "nodeB", &mock_data).unwrap();
 
         assert!(graph.find_path("rootA", "nodeB").is_none());
     }
@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn test_add_wrapping_unknown_parent() {
         let mut graph = InMemoryKeyGraph::new();
-        let result = graph.add_wrapping("child", "nonexistent_parent", &[0u8; 1]);
+        let result = graph.add_wrapping("nonexistent_parent", "child", &[0u8; 1]);
         assert!(matches!(result, Err(Error::InvalidParentKeyID(_))));
     }
 
@@ -301,7 +301,7 @@ mod tests {
         let mut graph = InMemoryKeyGraph::new();
         let data = vec![1u8, 2, 3, 4];
         graph.add_root("root").unwrap();
-        graph.add_wrapping("child", "root", &data).unwrap();
+        graph.add_wrapping("root", "child", &data).unwrap();
         assert_eq!(graph.get_wrapping("root", "child"), Some(Cow::from(&data)));
     }
 

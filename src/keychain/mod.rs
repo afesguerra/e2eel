@@ -67,7 +67,7 @@ where
 
         let encrypted_key = self.crypto.encrypt(&parent, &key)?;
 
-        self.keys.add_wrapping(key_id, parent_id, &encrypted_key)
+        self.keys.add_wrapping(parent_id, key_id, &encrypted_key)
     }
 
     pub fn add_root(&mut self, key_id: &str) -> Result<()> {
