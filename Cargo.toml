@@ -9,7 +9,7 @@ repository = "https://github.com/afesguerra/e2eel"
 
 
 [dependencies]
-aead = { version = "0.5.2", default-features = false }
+aead = { version = "0.5.2", default-features = false, features = ["std"], optional = true }
 aes-gcm = { version = "0.10.3", features = ["std"], optional = true }
 crypto_secretbox = { version = "0.1.1", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
@@ -18,7 +18,6 @@ thiserror = "2.0.18"
 zeroize = { version = "1.8.2", features = ["derive"] }
 
 [features]
-default = ["json", "aes256-gcm"]  # Enabled always unless --no-default-features
 json = ["dep:serde", "dep:serde_json"]
-aes256-gcm = ["dep:aes-gcm"]
-xsalsa20-poly1305 = ["dep:crypto_secretbox"]
+aes256-gcm = ["dep:aead", "dep:aes-gcm"]
+xsalsa20-poly1305 = ["dep:aead", "dep:crypto_secretbox"]

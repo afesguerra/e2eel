@@ -1,6 +1,7 @@
-pub mod aead;
-
 use crate::{Key, Result};
+
+#[cfg(any(feature = "aes256-gcm", feature = "xsalsa20-poly1305"))]
+pub mod aead;
 
 /// Trait for encryption/decryption implementations.
 /// `N` is the size of the key in bytes, `M` is the size of an encrypted key in bytes.

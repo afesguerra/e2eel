@@ -53,6 +53,7 @@ pub enum Error {
     Generic(String),
 
     // Dependencies
+    #[cfg(any(feature = "aes256-gcm", feature = "xsalsa20-poly1305"))]
     #[error("Crypto error")]
     Crypto(#[from] aead::Error),
     #[cfg(feature = "json")]
