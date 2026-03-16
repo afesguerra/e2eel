@@ -4,6 +4,8 @@ use crate::Result;
 
 #[cfg(feature = "in-memory")]
 pub mod in_memory;
+#[cfg(feature = "in-memory")]
+pub mod repository;
 
 /// Trait defining the interface for a key graph structure.
 /// A key graph manages key wrappings and parent-child relationships between keys.

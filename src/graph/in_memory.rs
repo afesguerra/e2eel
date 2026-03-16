@@ -1,12 +1,14 @@
-use crate::{Error, Result};
 use super::KeyGraph;
+use crate::{Error, Result};
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use std::borrow::Cow;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::option::Option;
 
-#[serde_with::serde_as]
-#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+#[serde_as]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 struct KeyNode {
     #[serde_as(as = "HashMap<_, serde_with::base64::Base64>")]
     wrappings: HashMap<String, Vec<u8>>,
@@ -26,7 +28,7 @@ impl KeyNode {
 
 /// In-memory implementation of the KeyGraph trait.
 /// Stores the key graph structure and all wrappings in memory using HashMaps.
-#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct InMemoryKeyGraph {
     version: String,
     roots: HashSet<String>,
@@ -47,19 +49,6 @@ impl InMemoryKeyGraph {
 
     fn has_root_or_node(&self, id: &str) -> bool {
         self.roots.contains(id) || self.nodes.contains_key(id)
-    }
-
-    /// Loads a key graph from a JSON file.
-    pub fn load_from_json(path: &str) -> Result<Self> {
-        let json = std::fs::read_to_string(path)?;
-        Ok(serde_json::from_str(&json)?)
-    }
-
-    /// Saves the key graph to a JSON file.
-    pub fn save_to_json(&self, path: &str) -> Result<()> {
-        let json = serde_json::to_string_pretty(self)?;
-        std::fs::write(path, json)?;
-        Ok(())
     }
 }
 
@@ -164,27 +153,7 @@ impl KeyGraph for InMemoryKeyGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_data::{KEK_LABEL, MASTER_LABEL, RECOVERY_LABEL};
-
-    const MASTER_KEY: [u8; 60] = [
-        69, 4, 131, 16, 243, 114, 55, 50, 143, 173, 62, 57, 1, 229, 144, 128, 129, 175, 17, 231, 1,
-        255, 154, 150, 142, 17, 185, 157, 246, 54, 238, 232, 106, 208, 172, 93, 101, 129, 118, 89, 214,
-        52, 65, 46, 125, 27, 124, 78, 87, 213, 49, 77, 21, 212, 98, 123, 164, 102, 21, 185,
-    ];
-
-    const RECOVERY_KEY: [u8; 60] = [
-        113, 94, 4, 21, 212, 215, 60, 86, 124, 33, 224, 244, 41, 8, 63, 99, 159, 79, 62, 168, 103, 43,
-        90, 189, 165, 44, 225, 170, 159, 175, 229, 65, 95, 177, 249, 29, 137, 123, 38, 224, 189, 84,
-        143, 73, 156, 126, 42, 147, 25, 204, 53, 112, 107, 102, 91, 246, 131, 162, 139, 151,
-    ];
-
-    fn sample_graph() -> InMemoryKeyGraph {
-        let mut graph = InMemoryKeyGraph::new();
-        graph.add_root(KEK_LABEL).unwrap();
-        graph.add_wrapping(KEK_LABEL, MASTER_LABEL, &MASTER_KEY).unwrap();
-        graph.add_wrapping(MASTER_LABEL, RECOVERY_LABEL, &RECOVERY_KEY).unwrap();
-        graph
-    }
+    use crate::test_data::{KEK_LABEL, MASTER_KEY, MASTER_LABEL, RECOVERY_KEY, RECOVERY_LABEL, sample_graph};
 
     #[test]
     fn test_shortest_path() {
@@ -323,32 +292,5 @@ mod tests {
         let wrappings = graph.get_wrappings(KEK_LABEL);
         assert_eq!(wrappings.len(), 1);
         assert_eq!(wrappings[0], Cow::from(&MASTER_KEY));
-    }
-
-    #[test]
-    fn test_json_serialization() {
-        use std::fs::{create_dir_all, metadata, remove_file};
-
-        const JSON_PATH: &str = "tmp/serde.json";
-
-        // Clean up any existing file
-        let _ = remove_file(JSON_PATH);
-        create_dir_all("tmp").expect("Unable to create tmp dir");
-
-        let graph = sample_graph();
-
-        // Test save
-        graph.save_to_json(JSON_PATH).expect("Error saving graph");
-
-        // Verify file exists
-        assert!(metadata(JSON_PATH).is_ok());
-
-        // Test load
-        let loaded = InMemoryKeyGraph::load_from_json(JSON_PATH)
-            .expect("Unable to load graph");
-        assert_eq!(loaded, graph);
-
-        // Clean up
-        let _ = remove_file(JSON_PATH);
     }
 }

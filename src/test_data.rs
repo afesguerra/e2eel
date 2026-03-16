@@ -1,4 +1,6 @@
-use super::*;
+use crate::in_memory::InMemoryKeyGraph;
+use crate::{CryptoProvider, Key, KeyGraph, Result};
+
 use std::array::from_fn;
 use std::sync::atomic::{AtomicU8, Ordering};
 
@@ -35,4 +37,28 @@ impl CryptoProvider<32, 32> for TestCrypto {
         data.reverse();
         Ok(Key::from(data))
     }
+}
+
+pub const MASTER_KEY: [u8; 60] = [
+    69, 4, 131, 16, 243, 114, 55, 50, 143, 173, 62, 57, 1, 229, 144, 128, 129, 175, 17, 231, 1,
+    255, 154, 150, 142, 17, 185, 157, 246, 54, 238, 232, 106, 208, 172, 93, 101, 129, 118, 89, 214,
+    52, 65, 46, 125, 27, 124, 78, 87, 213, 49, 77, 21, 212, 98, 123, 164, 102, 21, 185,
+];
+
+pub const RECOVERY_KEY: [u8; 60] = [
+    113, 94, 4, 21, 212, 215, 60, 86, 124, 33, 224, 244, 41, 8, 63, 99, 159, 79, 62, 168, 103, 43,
+    90, 189, 165, 44, 225, 170, 159, 175, 229, 65, 95, 177, 249, 29, 137, 123, 38, 224, 189, 84,
+    143, 73, 156, 126, 42, 147, 25, 204, 53, 112, 107, 102, 91, 246, 131, 162, 139, 151,
+];
+
+pub fn sample_graph() -> InMemoryKeyGraph {
+    let mut graph = InMemoryKeyGraph::new();
+    graph.add_root(KEK_LABEL).unwrap();
+    graph
+        .add_wrapping(KEK_LABEL, MASTER_LABEL, &MASTER_KEY)
+        .unwrap();
+    graph
+        .add_wrapping(MASTER_LABEL, RECOVERY_LABEL, &RECOVERY_KEY)
+        .unwrap();
+    graph
 }
