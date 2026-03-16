@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use crate::Result;
 
+#[cfg(feature = "in-memory")]
 pub mod in_memory;
 
 /// Trait defining the interface for a key graph structure.

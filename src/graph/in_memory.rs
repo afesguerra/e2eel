@@ -5,9 +5,10 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::borrow::Cow;
 use std::option::Option;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
+#[serde_with::serde_as]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 struct KeyNode {
+    #[serde_as(as = "HashMap<_, serde_with::base64::Base64>")]
     wrappings: HashMap<String, Vec<u8>>,
 }
 
@@ -25,8 +26,7 @@ impl KeyNode {
 
 /// In-memory implementation of the KeyGraph trait.
 /// Stores the key graph structure and all wrappings in memory using HashMaps.
-#[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct InMemoryKeyGraph {
     version: String,
     roots: HashSet<String>,
@@ -50,14 +50,12 @@ impl InMemoryKeyGraph {
     }
 
     /// Loads a key graph from a JSON file.
-    #[cfg(feature = "json")]
     pub fn load_from_json(path: &str) -> Result<Self> {
         let json = std::fs::read_to_string(path)?;
         Ok(serde_json::from_str(&json)?)
     }
 
     /// Saves the key graph to a JSON file.
-    #[cfg(feature = "json")]
     pub fn save_to_json(&self, path: &str) -> Result<()> {
         let json = serde_json::to_string_pretty(self)?;
         std::fs::write(path, json)?;
@@ -328,7 +326,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "json")]
     fn test_json_serialization() {
         use std::fs::{create_dir_all, metadata, remove_file};
 

@@ -56,7 +56,7 @@ pub enum Error {
     #[cfg(any(feature = "aes256-gcm", feature = "xsalsa20-poly1305"))]
     #[error("Crypto error")]
     Crypto(#[from] aead::Error),
-    #[cfg(feature = "json")]
+    #[cfg(feature = "in-memory")]
     #[error("JSON (de)serialization error")]
     JSON(#[from] serde_json::Error),
     #[error("IO error")]
