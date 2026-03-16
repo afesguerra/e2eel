@@ -111,13 +111,17 @@ impl KeyGraph for InMemoryKeyGraph {
             .collect()
     }
 
-    fn find_path(&self, src: &str, dest: &str) -> Option<Vec<Cow<'_, [u8]>>> {
-        if !self.has_root_or_node(src) || !self.has_root_or_node(dest) {
-            return None;
+    fn find_path(&self, src: &str, dest: &str) -> Result<Vec<Cow<'_, [u8]>>> {
+        if !self.has_root_or_node(src) {
+            return Err(Error::InvalidKeyID(src.to_string()));
+        }
+
+        if !self.has_root_or_node(dest) {
+            return Err(Error::InvalidKeyID(dest.to_string()));
         }
 
         if src == dest {
-            return Some(vec![]);
+            return Ok(vec![]);
         }
 
         // Lazy reverse BFS: dest -> ... -> src (no full adj build)
@@ -137,10 +141,10 @@ impl KeyGraph for InMemoryKeyGraph {
                 let mut old_parent: &str;
                 while at != dest {
                     old_parent = at;
-                    at = parent.get(at)?;
-                    path.push(self.get_wrapping(old_parent, at)?);
+                    at = parent.get(at).ok_or(Error::CorruptedGraph)?;
+                    path.push(self.get_wrapping(old_parent, at).ok_or(Error::CorruptedGraph)?);
                 }
-                return Some(path);
+                return Ok(path);
             }
 
             // Forward neighbors: parents of curr (direct from its wrappings keys)
@@ -155,9 +159,8 @@ impl KeyGraph for InMemoryKeyGraph {
                 }
             }
         }
-        None
+        Err(Error::NoSuchPath(format!("No path found from {} to {}", src, dest)))
     }
-
 }
 
 #[cfg(test)]
@@ -221,37 +224,35 @@ mod tests {
     #[test]
     fn test_path_nonexistent_src() {
         let graph = sample_graph();
-        assert!(graph.find_path("ghost", RECOVERY_LABEL).is_none());
+        assert!(graph.find_path("ghost", RECOVERY_LABEL).is_err());
     }
 
     #[test]
     fn test_path_nonexistent_dest() {
         let graph = sample_graph();
-        assert!(graph.find_path(KEK_LABEL, "ghost").is_none());
+        assert!(graph.find_path(KEK_LABEL, "ghost").is_err());
     }
 
     #[test]
     fn test_path_both_nonexistent() {
         let graph = sample_graph();
-        assert!(graph.find_path("ghost_src", "ghost_dest").is_none());
+        assert!(graph.find_path("ghost_src", "ghost_dest").is_err());
     }
 
     #[test]
     fn test_path_same_root() {
         let graph = sample_graph();
-        assert_eq!(
-            graph.find_path(KEK_LABEL, KEK_LABEL),
-            Some(vec![])
-        );
+        let result = graph.find_path(KEK_LABEL, KEK_LABEL);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
     }
 
     #[test]
     fn test_path_same_node() {
         let graph = sample_graph();
-        assert_eq!(
-            graph.find_path(RECOVERY_LABEL, RECOVERY_LABEL),
-            Some(vec![])
-        );
+        let result = graph.find_path(RECOVERY_LABEL, RECOVERY_LABEL);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
     }
 
     #[test]
@@ -267,7 +268,7 @@ mod tests {
     fn test_path_same_nonexistent_node() {
         // src == dest but neither exists — existence check must fire before the same-node shortcut
         let graph = sample_graph();
-        assert!(graph.find_path("ghost", "ghost").is_none());
+        assert!(graph.find_path("ghost", "ghost").is_err());
     }
 
     #[test]
@@ -282,7 +283,7 @@ mod tests {
         graph.add_root("rootB").unwrap();
         graph.add_wrapping("rootB", "nodeB", &mock_data).unwrap();
 
-        assert!(graph.find_path("rootA", "nodeB").is_none());
+        assert!(graph.find_path("rootA", "nodeB").is_err());
     }
 
     // --- add_wrapping edge cases ---

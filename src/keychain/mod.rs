@@ -40,13 +40,7 @@ where
     }
 
     pub fn get_key(&self, id: &str) -> Result<Key<N>> {
-        let path =
-            self.keys
-                .find_path(&self.root_id, id)
-                .ok_or(Error::NoSuchPath(format!(
-                    "There is no path from {} to {}",
-                    self.root_id, id
-                )))?;
+        let path = self.keys.find_path(&self.root_id, id)?;
 
         let mut key: Key<N> = self.root.clone();
 

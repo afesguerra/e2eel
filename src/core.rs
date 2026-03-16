@@ -46,6 +46,9 @@ pub enum Error {
     InvalidParentKeyID(String),
     #[error("Key graph error: {0}")]
     NoSuchPath(String),
+    /// Corrupted graph, probably a bug or data corruption
+    #[error("Corrupted graph")]
+    CorruptedGraph,
     #[error("Generic error: {0}")]
     Generic(String),
 

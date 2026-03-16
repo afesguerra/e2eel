@@ -20,5 +20,5 @@ pub trait KeyGraph {
     fn get_wrappings(&self, parent: &str) -> Vec<Cow<'_, [u8]>>;
 
     /// Finds the shortest path between two key IDs in the graph.
-    fn find_path(&self, src: &str, dest: &str) -> Option<Vec<Cow<'_, [u8]>>>;
+    fn find_path(&self, src: &str, dest: &str) -> Result<Vec<Cow<'_, [u8]>>>;
 }
