@@ -26,7 +26,7 @@ impl<const N: usize> Deref for Key<N> {
 
 impl<const N: usize> AsRef<[u8]> for Key<N> {
     fn as_ref(&self) -> &[u8] {
-        &self.0
+        self.deref().as_ref()
     }
 }
 

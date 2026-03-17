@@ -15,7 +15,7 @@ pub trait AeadCryptoProvider<const N: usize, const M: usize>: Send + Sync {
     type Cipher: Aead + KeyInit + Send + Sync;
 
     fn encrypt_aead(&self, key: &Key<N>, plaintext: &Key<N>) -> Result<[u8; M]> {
-        let cipher = Self::Cipher::new_from_slice(&**key)
+        let cipher = Self::Cipher::new_from_slice(key.as_ref())
             .map_err(|_| Error::Generic("Key has incorrect length for cipher".to_string()))?;
         let nonce = Self::Cipher::generate_nonce(OsRng);
         let ciphertext = cipher.encrypt(&nonce, plaintext.as_ref())?;
@@ -43,7 +43,7 @@ pub trait AeadCryptoProvider<const N: usize, const M: usize>: Send + Sync {
         let nonce_length = <Self::Cipher as AeadCore>::NonceSize::USIZE;
         let (nonce, encrypted) = ciphertext.split_at(nonce_length);
 
-        let cipher = Self::Cipher::new_from_slice(&**key)
+        let cipher = Self::Cipher::new_from_slice(key.as_ref())
             .map_err(|_| Error::Generic("Key has incorrect length for cipher".to_string()))?;
 
         let plaintext = cipher.decrypt(nonce.into(), encrypted)?;
