@@ -9,35 +9,21 @@ use aead::{Aead, AeadCore, KeyInit, OsRng};
 ///
 /// Implement this trait by specifying:
 /// - `Cipher`: the AEAD cipher type
-/// - `NONCE_LEN`: nonce length in bytes
 ///
 /// Then you automatically get a `CryptoProvider` implementation via the blanket impl below.
 pub trait AeadCryptoProvider<const N: usize, const M: usize>: Send + Sync {
     type Cipher: Aead + KeyInit + Send + Sync;
-    const NONCE_LEN: usize;
-
-    fn validate_nonce_len() -> Result<()> {
-        let expected = <Self::Cipher as AeadCore>::NonceSize::USIZE;
-        if Self::NONCE_LEN != expected {
-            return Err(Error::Generic(format!(
-                "Provider NONCE_LEN mismatch: expected {}, got {}",
-                expected,
-                Self::NONCE_LEN
-            )));
-        }
-        Ok(())
-    }
 
     fn encrypt_aead(&self, key: &Key<N>, plaintext: &Key<N>) -> Result<[u8; M]> {
-        Self::validate_nonce_len()?;
-
         let cipher = Self::Cipher::new_from_slice(&**key)
             .map_err(|_| Error::Generic("Key has incorrect length for cipher".to_string()))?;
         let nonce = Self::Cipher::generate_nonce(OsRng);
         let ciphertext = cipher.encrypt(&nonce, plaintext.as_ref())?;
 
+
+        let nonce_length = <Self::Cipher as AeadCore>::NonceSize::USIZE;
         let expected_ciphertext_len = M
-            .checked_sub(Self::NONCE_LEN)
+            .checked_sub(nonce_length)
             .ok_or_else(|| Error::Generic("Encrypted buffer size is too small".to_string()))?;
 
         if ciphertext.len() != expected_ciphertext_len {
@@ -48,15 +34,14 @@ pub trait AeadCryptoProvider<const N: usize, const M: usize>: Send + Sync {
         }
 
         let mut result = [0u8; M];
-        result[..Self::NONCE_LEN].copy_from_slice(&nonce);
-        result[Self::NONCE_LEN..].copy_from_slice(&ciphertext);
+        result[..nonce_length].copy_from_slice(&nonce);
+        result[nonce_length..].copy_from_slice(&ciphertext);
         Ok(result)
     }
 
     fn decrypt_aead(&self, key: &Key<N>, ciphertext: &[u8; M]) -> Result<Key<N>> {
-        Self::validate_nonce_len()?;
-
-        let (nonce, encrypted) = ciphertext.split_at(Self::NONCE_LEN);
+        let nonce_length = <Self::Cipher as AeadCore>::NonceSize::USIZE;
+        let (nonce, encrypted) = ciphertext.split_at(nonce_length);
 
         let cipher = Self::Cipher::new_from_slice(&**key)
             .map_err(|_| Error::Generic("Key has incorrect length for cipher".to_string()))?;
@@ -118,7 +103,6 @@ mod aes256_impl {
 
     impl AeadCryptoProvider<32, 60> for Aes256GcmProvider {
         type Cipher = Aes256Gcm;
-        const NONCE_LEN: usize = 12;
     }
 }
 
@@ -135,7 +119,6 @@ mod xsalsa20_impl {
 
     impl AeadCryptoProvider<32, 72> for XSalsa20Poly1305Provider {
         type Cipher = XSalsa20Poly1305;
-        const NONCE_LEN: usize = 24;
     }
 }
 
@@ -256,36 +239,6 @@ mod tests {
             match err {
                 Error::Crypto(_) => {}
                 _ => panic!("Expected Error::Crypto for tampered ciphertext"),
-            }
-        }
-
-        #[test]
-        fn aes256_nonce_length_mismatch_returns_generic_error() {
-            use aes_gcm::Aes256Gcm;
-
-            struct BadAesProvider;
-
-            impl AeadCryptoProvider<32, 60> for BadAesProvider {
-                type Cipher = Aes256Gcm;
-                const NONCE_LEN: usize = 24;
-            }
-
-            let provider = BadAesProvider;
-            let key: Key<32> = Key::from([0u8; 32]);
-            let plaintext: Key<32> = Key::from([1u8; 32]);
-
-            let err = provider
-                .encrypt(&key, &plaintext)
-                .expect_err("Expected NONCE_LEN mismatch to fail");
-
-            match err {
-                Error::Generic(msg) => {
-                    assert!(
-                        msg.contains("Provider NONCE_LEN mismatch"),
-                        "Unexpected error message: {msg}"
-                    );
-                }
-                _ => panic!("Expected Error::Generic for nonce mismatch"),
             }
         }
     }
