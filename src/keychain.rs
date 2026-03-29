@@ -78,7 +78,7 @@ mod tests {
             TestCrypto::new(),
             KEK_LABEL,
             Key::from(KEK),
-            InMemoryKeyGraph::new(),
+            InMemoryKeyGraph::default(),
         )
         .expect("KeyChain creation failed");
 

@@ -19,6 +19,7 @@ thiserror = "2.0.18"
 zeroize = { version = "1.8.2", features = ["derive"] }
 
 [features]
+default = ["in-memory"]
 in-memory = ["dep:serde", "dep:serde_json", "dep:serde_with"]
 aes256-gcm = ["dep:aead", "dep:aes-gcm"]
 xsalsa20-poly1305 = ["dep:aead", "dep:crypto_secretbox"]

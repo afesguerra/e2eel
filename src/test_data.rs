@@ -52,7 +52,7 @@ pub const RECOVERY_KEY: [u8; 60] = [
 ];
 
 pub fn sample_graph() -> InMemoryKeyGraph {
-    let mut graph = InMemoryKeyGraph::new();
+    let mut graph = InMemoryKeyGraph::default();
     graph.add_root(KEK_LABEL).unwrap();
     graph
         .add_wrapping(KEK_LABEL, MASTER_LABEL, &MASTER_KEY)

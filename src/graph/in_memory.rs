@@ -8,19 +8,13 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::option::Option;
 
 #[serde_as]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 struct KeyNode {
     #[serde_as(as = "HashMap<_, serde_with::base64::Base64>")]
     wrappings: HashMap<String, Vec<u8>>,
 }
 
 impl KeyNode {
-    fn new() -> Self {
-        Self {
-            wrappings: HashMap::new(),
-        }
-    }
-
     fn add_wrapping(&mut self, label: &str, wrapping: &[u8]) -> Option<Vec<u8>> {
         self.wrappings.insert(label.to_string(), wrapping.into())
     }
@@ -37,16 +31,17 @@ pub struct InMemoryKeyGraph {
 
 const CURRENT_VERSION: &str = "0.1";
 
-impl InMemoryKeyGraph {
-    /// Creates a new empty in-memory key graph.
-    pub fn new() -> Self {
+impl Default for InMemoryKeyGraph {
+    fn default() -> Self {
         Self {
             version: CURRENT_VERSION.into(),
             roots: HashSet::new(),
             nodes: HashMap::new(),
         }
     }
+}
 
+impl InMemoryKeyGraph {
     fn has_root_or_node(&self, id: &str) -> bool {
         self.roots.contains(id) || self.nodes.contains_key(id)
     }
@@ -68,7 +63,7 @@ impl KeyGraph for InMemoryKeyGraph {
         }
 
         if !self.nodes.contains_key(id) {
-            let new_node = KeyNode::new();
+            let new_node = KeyNode::default();
             self.nodes.insert(id.into(), new_node);
         }
 
@@ -172,7 +167,7 @@ mod tests {
     #[test]
     fn test_multiple_paths() {
         let mock_data = [0u8; 1];
-        let mut graph = InMemoryKeyGraph::new();
+        let mut graph = InMemoryKeyGraph::default();
 
         graph.add_root("root").unwrap();
         graph.add_wrapping("root", "nodeA1", &mock_data).unwrap();
@@ -242,7 +237,7 @@ mod tests {
     fn test_path_no_connection() {
         // Two completely disconnected subtrees: rootA -> nodeA, rootB -> nodeB
         let mock_data = [0u8; 1];
-        let mut graph = InMemoryKeyGraph::new();
+        let mut graph = InMemoryKeyGraph::default();
 
         graph.add_root("rootA").unwrap();
         graph.add_wrapping("rootA", "nodeA", &mock_data).unwrap();
@@ -257,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_add_wrapping_unknown_parent() {
-        let mut graph = InMemoryKeyGraph::new();
+        let mut graph = InMemoryKeyGraph::default();
         let result = graph.add_wrapping("nonexistent_parent", "child", &[0u8; 1]);
         assert!(matches!(result, Err(Error::InvalidParentKeyID(_))));
     }
@@ -266,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_get_wrapping_returns_data() {
-        let mut graph = InMemoryKeyGraph::new();
+        let mut graph = InMemoryKeyGraph::default();
         let data = vec![1u8, 2, 3, 4];
         graph.add_root("root").unwrap();
         graph.add_wrapping("root", "child", &data).unwrap();
