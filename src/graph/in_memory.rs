@@ -84,13 +84,17 @@ impl KeyGraph for InMemoryKeyGraph {
             .map(Cow::from)
     }
 
-    fn get_wrappings(&self, parent: &str) -> Vec<Cow<'_, [u8]>> {
-        self
+    fn get_wrappings(&self, parent: &str) -> Result<Vec<Cow<'_, [u8]>>> {
+        if !self.has_root_or_node(parent) {
+            return Err(Error::InvalidParentKeyID(parent.to_string()));
+        }
+
+        Ok(self
             .nodes
             .values()
             .filter_map(|f| f.wrappings.get(parent))
             .map(Cow::from)
-            .collect()
+            .collect())
     }
 
     fn find_path(&self, src: &str, dest: &str) -> Result<Vec<Cow<'_, [u8]>>> {
@@ -284,7 +288,7 @@ mod tests {
     #[test]
     fn test_get_wrappings() {
         let graph = sample_graph();
-        let wrappings = graph.get_wrappings(KEK_LABEL);
+        let wrappings = graph.get_wrappings(KEK_LABEL).unwrap();
         assert_eq!(wrappings.len(), 1);
         assert_eq!(wrappings[0], Cow::from(&MASTER_KEY));
     }
