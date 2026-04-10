@@ -20,20 +20,22 @@ impl TestCrypto {
     }
 }
 
-impl CryptoProvider<32, 32> for TestCrypto {
+const KEY_SIZE: usize = 32;
+
+impl CryptoProvider<KEY_SIZE, KEY_SIZE> for TestCrypto {
     fn generate_key(&self) -> Result<Key<32>> {
         let n = self.0.fetch_add(1, Ordering::Relaxed);
         Ok(Key::from(array_from_mul(&n)))
     }
 
-    fn encrypt(&self, _key: &Key<32>, plaintext: &Key<32>) -> Result<[u8; 32]> {
-        let mut data = **plaintext;
+    fn encrypt(&self, _key: &[u8; KEY_SIZE], plaintext: &[u8; KEY_SIZE]) -> Result<[u8; KEY_SIZE]> {
+        let mut data = *plaintext;
         data.reverse();
         Ok(data)
     }
 
-    fn decrypt(&self, _key: &Key<32>, ciphertext: &[u8; 32]) -> Result<Key<32>> {
-        let mut data: [u8; 32] = *ciphertext;
+    fn decrypt(&self, _key: &[u8; KEY_SIZE], ciphertext: &[u8; KEY_SIZE]) -> Result<Key<KEY_SIZE>> {
+        let mut data: [u8; KEY_SIZE] = *ciphertext;
         data.reverse();
         Ok(Key::from(data))
     }

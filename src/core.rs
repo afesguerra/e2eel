@@ -24,12 +24,6 @@ impl<const N: usize> Deref for Key<N> {
     }
 }
 
-impl<const N: usize> AsRef<[u8]> for Key<N> {
-    fn as_ref(&self) -> &[u8] {
-        self.deref().as_ref()
-    }
-}
-
 impl<const N: usize> fmt::Debug for Key<N> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Key<{N}>([REDACTED])")

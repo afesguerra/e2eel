@@ -14,8 +14,8 @@ use aead::{Aead, AeadCore, KeyInit, OsRng};
 pub trait AeadCryptoProvider<const N: usize, const M: usize>: Send + Sync {
     type Cipher: Aead + KeyInit + Send + Sync;
 
-    fn encrypt_aead(&self, key: &Key<N>, plaintext: &Key<N>) -> Result<[u8; M]> {
-        let cipher = Self::Cipher::new_from_slice(key.as_ref())
+    fn encrypt_aead(&self, key: &[u8; N], plaintext: &[u8; N]) -> Result<[u8; M]> {
+        let cipher = Self::Cipher::new_from_slice(key)
             .map_err(|_| Error::Generic("Key has incorrect length for cipher".to_string()))?;
         let nonce = Self::Cipher::generate_nonce(OsRng);
         let ciphertext = cipher.encrypt(&nonce, plaintext.as_ref())?;
@@ -39,11 +39,11 @@ pub trait AeadCryptoProvider<const N: usize, const M: usize>: Send + Sync {
         Ok(result)
     }
 
-    fn decrypt_aead(&self, key: &Key<N>, ciphertext: &[u8; M]) -> Result<Key<N>> {
+    fn decrypt_aead(&self, key: &[u8; N], ciphertext: &[u8; M]) -> Result<Key<N>> {
         let nonce_length = <Self::Cipher as AeadCore>::NonceSize::USIZE;
         let (nonce, encrypted) = ciphertext.split_at(nonce_length);
 
-        let cipher = Self::Cipher::new_from_slice(key.as_ref())
+        let cipher = Self::Cipher::new_from_slice(key)
             .map_err(|_| Error::Generic("Key has incorrect length for cipher".to_string()))?;
 
         let plaintext = cipher.decrypt(nonce.into(), encrypted)?;
@@ -71,11 +71,11 @@ impl<T, const N: usize, const M: usize> CryptoProvider<N, M> for T
 where
     T: AeadCryptoProvider<N, M>,
 {
-    fn encrypt(&self, key: &Key<N>, plaintext: &Key<N>) -> Result<[u8; M]> {
+    fn encrypt(&self, key: &[u8; N], plaintext: &[u8; N]) -> Result<[u8; M]> {
         self.encrypt_aead(key, plaintext)
     }
 
-    fn decrypt(&self, key: &Key<N>, ciphertext: &[u8; M]) -> Result<Key<N>> {
+    fn decrypt(&self, key: &[u8; N], ciphertext: &[u8; M]) -> Result<Key<N>> {
         self.decrypt_aead(key, ciphertext)
     }
 
