@@ -75,13 +75,15 @@ impl KeyGraph for InMemoryKeyGraph {
         Ok(())
     }
 
-    fn get_wrapping(&self, parent: &str, id: &str) -> Option<Cow<'_, [u8]>> {
-        self
+    fn get_wrapping(&self, parent: &str, id: &str) -> Result<Cow<'_, [u8]>> {
+        let wrapping = self
             .nodes
-            .get(id)?
+            .get(id)
+            .ok_or_else(|| Error::InvalidKeyID(id.to_string()))?
             .wrappings
             .get(parent)
-            .map(Cow::from)
+            .ok_or_else(|| Error::InvalidWrapping(id.to_string(), parent.to_string()))?;
+        Ok(Cow::from(wrapping))
     }
 
     fn get_wrappings(&self, parent: &str) -> Result<Vec<Cow<'_, [u8]>>> {
@@ -128,7 +130,7 @@ impl KeyGraph for InMemoryKeyGraph {
                 while at != dest {
                     old_parent = at;
                     at = parent.get(at).ok_or(Error::CorruptedGraph)?;
-                    path.push(self.get_wrapping(old_parent, at).ok_or(Error::CorruptedGraph)?);
+                    path.push(self.get_wrapping(old_parent, at)?);
                 }
                 return Ok(path);
             }
@@ -269,20 +271,22 @@ mod tests {
         let data = vec![1u8, 2, 3, 4];
         graph.add_root("root").unwrap();
         graph.add_wrapping("root", "child", &data).unwrap();
-        assert_eq!(graph.get_wrapping("root", "child"), Some(Cow::from(&data)));
+        let wrapping = graph.get_wrapping("root", "child");
+        assert!(wrapping.is_ok());
+        assert_eq!(wrapping.unwrap(), Cow::from(&data));
     }
 
     #[test]
     fn test_get_wrapping_unknown_node() {
         let graph = sample_graph();
-        assert!(graph.get_wrapping(KEK_LABEL, "ghost").is_none());
+        assert!(graph.get_wrapping(KEK_LABEL, "ghost").is_err());
     }
 
     #[test]
     fn test_get_wrapping_unknown_parent() {
         let graph = sample_graph();
         // MASTER_LABEL is a valid node but "ghost_parent" is not its parent
-        assert!(graph.get_wrapping("ghost_parent", MASTER_LABEL).is_none());
+        assert!(graph.get_wrapping("ghost_parent", MASTER_LABEL).is_err());
     }
 
     #[test]
